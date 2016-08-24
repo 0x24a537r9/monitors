@@ -1,0 +1,16 @@
+click==6.6
+Flask==0.11.1
+freezegun==0.3.7
+itsdangerous==0.24
+Jinja2==2.8
+MarkupSafe==0.23
+pbr==1.10.0
+python-dateutil==2.5.3
+requests==2.11.1
+Shapely==1.5.16
+six==1.10.0
+stevedore==1.17.1
+virtualenv==15.0.3
+virtualenv-clone==0.2.6
+virtualenvwrapper==4.7.1
+Werkzeug==0.11.10
