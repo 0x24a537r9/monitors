@@ -19,7 +19,7 @@ The geofencing monitor runs as a very simple [Flask](http://flask.pocoo.org/) HT
 | `/ok`           | Simply returns "ok" if the server is up. Used by `ok_monitor.py` to ensure that the monitor itself is up and running.|
 | `/killkillkill` | Kills the server and monitor.|
 
-Simply run `python geofence_monitor.py` to see its command-line options (powered by Python's `argparse` module). At minimum, it expects at least one car ID range, specified as either a single integer (e.g.  `3`) or a range (e.g. `1-11). To test its basic functionality in an accelerated timescale, I suggest running with:
+Simply run `python geofence_monitor.py` to see its command-line options (powered by Python's `argparse` module). At minimum, it expects at least one car ID range, specified as either a single integer (e.g.  `3`) or a range (e.g. `1-11`). To test its basic functionality in an accelerated timescale, I suggest running with:
 
     python geofence_monitor.py 1 --max_query_qps=1 --poll_period_s=10 --min_poll_padding_period_s=0
 
