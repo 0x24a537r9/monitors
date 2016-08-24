@@ -183,7 +183,7 @@ def ok():
 
 @app.route('/silence')
 def silence():
-  duration_string = flask.request.args.get('duration', '5m')
+  duration_string = flask.request.args.get('duration', '1h')
   duration_components = re.match(
       r'^((?P<days>\d+?)d)?((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?$',
       duration_string)
