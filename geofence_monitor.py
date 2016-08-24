@@ -5,6 +5,7 @@ import logging
 import re
 import requests
 import smtplib
+import sys
 import threading
 import time
 import urllib
@@ -19,14 +20,13 @@ app = flask.Flask(__name__)
 
 def parse_ids(arg):
   match = re.match(r'^(\d+)-(\d+)$', arg)
-  if match:
-    return range(int(match.group(1)), int(match.group(2)) + 1)
-  elif re.match(r'^\d+', arg):
-    return [int(arg)]
-  raise ValueError('Invalid id argument: "%s"' % arg)
+  try:
+    return range(int(match.group(1)), int(match.group(2)) + 1) if match else [int(arg)]
+  except e:
+    raise ValueError('Invalid ID arg: "%s"' % arg)
 
 
-def parse_args():
+def parse_args(args=sys.argv[1:]):
   parser = argparse.ArgumentParser(description='Monitors cars, triggering an email alert if any '
                                                'leave their prescribed geofences.')
   arg_defs = [{
@@ -84,7 +84,7 @@ def parse_args():
   }]
   for arg_def in arg_defs:
     parser.add_argument(arg_def.pop('name'), **arg_def)
-  args = parser.parse_args()
+  args = parser.parse_args(args)
 
   # Flatten the car_ids args into a set.
   args.car_ids = sorted(reduce(lambda acc, ids: acc | set(ids), args.car_ids, set()))
@@ -98,6 +98,7 @@ def poll():
     start_time = time.time()
 
     # Fetch the car's status.
+    logging.debug('Fetching status for car %s.' % car_id)
     geojson = json.load(urllib2.urlopen(args.car_status_endpoint % car_id))
 
     # Extract the first Point feature in the GeoJSON response as the car's coordinates.
@@ -153,7 +154,7 @@ def ok():
 if __name__ == '__main__':
   args = parse_args()
   logging.basicConfig(level=args.logging_level,
-                      format='%(levelname)s %(asctime)s [%(name)s]: %(message)s')
+                      format='%(levelname)-8s %(asctime)s [%(name)s]: %(message)s')
 
   poll()
   app.run()
