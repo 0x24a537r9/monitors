@@ -2,6 +2,7 @@ import argparse
 import collections
 import flask
 import logging
+import logging.handlers
 import re
 import requests
 import sys
@@ -11,7 +12,7 @@ import time
 
 args, deps, callbacks, alive = None, None, [], False
 app = flask.Flask(__name__)
-
+logger = logging.getLogger('polling_monitor')
 
 Deps = collections.namedtuple('Deps', ['requests', 'time'])
 DEFAULT_DEPS = Deps(requests=requests, time=time)
@@ -22,14 +23,42 @@ def start(name, description, arg_defs=[], raw_args=sys.argv[1:], raw_deps=DEFAUL
   args = parse_args(name, description, arg_defs, raw_args)
   deps = raw_deps
   alive = True
-  logging.basicConfig(level=args.logging_level,
-                      format='%(levelname)-8s %(asctime)s [%(name)s]: %(message)s')
-  poll()
+  set_up_logging()
+  threading.Timer(1, poll).start()
   app.run(port=args.port)
+
+
+def set_up_logging():
+  logger.setLevel(args.logging_level)
+  formatter = logging.Formatter('%(levelname)-8s %(asctime)s [%(name)s]: %(message)s')
+
+  stdout = logging.StreamHandler(stream=sys.stdout)
+  stdout.setLevel(args.logging_level)
+  stdout.setFormatter(formatter)
+  logger.addHandler(stdout)
+
+  info = logging.handlers.TimedRotatingFileHandler(
+      '%s.INFO.log' % args.log_file_prefix, when='d', interval=1, backupCount=7)
+  info.setLevel(logging.INFO)
+  info.setFormatter(formatter)
+  logger.addHandler(info)
+
+  warning = logging.handlers.TimedRotatingFileHandler(
+      '%s.WARNING.log' % args.log_file_prefix, when='d', interval=1, backupCount=7)
+  warning.setLevel(logging.WARNING)
+  warning.setFormatter(formatter)
+  logger.addHandler(warning)
+
+  ERROR = logging.handlers.TimedRotatingFileHandler(
+      '%s.ERROR.log' % args.log_file_prefix, when='d', interval=1, backupCount=7)
+  ERROR.setLevel(logging.ERROR)
+  ERROR.setFormatter(formatter)
+  logger.addHandler(ERROR)
 
 
 def parse_args(name, description, arg_defs, raw_args=sys.argv[1:]):
   parser = argparse.ArgumentParser(description=description)
+  name_slug = name.lower().replace(' ', '_')
   arg_defs += [{
     'name': '--alert_emails',
     'dest': 'alert_emails',
@@ -39,7 +68,7 @@ def parse_args(name, description, arg_defs, raw_args=sys.argv[1:]):
   }, {
     'name': '--monitor_email',
     'dest': 'monitor_email',
-    'default': '%s <engineering+%s@skurt.com>' % (name, name.lower().replace(' ', '_')),
+    'default': '%s <engineering+%s@skurt.com>' % (name, name_slug),
     'help': 'The email addresses from which to send alerts',
   }, {
     'name': '--poll_period_s',
@@ -65,6 +94,11 @@ def parse_args(name, description, arg_defs, raw_args=sys.argv[1:]):
     'type': int,
     'help': 'The port to use for the monitoring HTTP server',
   }, {
+    'name': '--log_file_prefix',
+    'dest': 'log_file_prefix',
+    'default': name_slug,
+    'help': 'The prefix for the file used for logging',
+  }, {
     'name': '--log',
     'dest': 'logging_level',
     'default': logging.INFO,
@@ -78,11 +112,11 @@ def parse_args(name, description, arg_defs, raw_args=sys.argv[1:]):
 
 
 def poll():
-  logging.debug('Polling...')
+  logger.debug('Polling...')
   start_time = deps.time.time()
 
   if not callbacks:
-    logging.critical('No polling callbacks implemented.')
+    logger.critical('No polling callbacks implemented.')
     raise NotImplementedError('No polling callbacks implemented.')
   for callback in callbacks:
     callback()
@@ -120,11 +154,11 @@ def ok():
 
 @app.route('/killkillkill')
 def kill():
-  logging.info('Received killkillkill request. Shutting down...')
+  logger.info('Received killkillkill request. Shutting down...')
   func = flask.request.environ.get('werkzeug.server.shutdown')
   if func is None:
     raise RuntimeError('Not running with the Werkzeug Server')
   func()
   global alive
   alive = False
-  return 'Shutting down...'
+  exit(-1)

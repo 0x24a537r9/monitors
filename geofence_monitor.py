@@ -14,6 +14,9 @@ import urllib
 import urllib2
 
 
+logger = logging.getLogger('polling_monitor.geofence_monitor')
+
+
 Deps = collections.namedtuple('Deps', ('geometry', 'urllib2') + pm.Deps._fields)
 DEFAULT_DEPS = Deps(geometry=shapely.geometry, urllib2=urllib2, **pm.DEFAULT_DEPS._asdict())
 
@@ -62,14 +65,14 @@ def poll():
     start_time = pm.deps.time.time()
 
     # Fetch the car's status.
-    logging.debug('Fetching status for car %s.' % car_id)
+    logger.debug('Fetching status for car %s.' % car_id)
     geojson = json.load(urllib2.urlopen(pm.args.car_status_endpoint % car_id))
 
     # Extract the first Point feature in the GeoJSON response as the car's coordinates.
     car = next((feature for feature in geojson['features']
                 if feature['geometry']['type'] == 'Point'), None)
     if not car:
-      logging.warning('No car coordinates for car %s in status response: %s', car_id, geojson)
+      logger.warning('No car coordinates for car %s in status response: %s', car_id, geojson)
       continue
 
     # Extract all Polygon features as the car's geofences.
@@ -80,13 +83,13 @@ def poll():
     shape = pm.deps.geometry.shape
     if not any(shape(geofence['geometry']).contains(shape(car['geometry']))
                for geofence in geofences):
-      logging.info('Car found outside of geofence: %s', car['properties']['id'])
+      logger.info('Car %s was found outside of its geofences.', car['properties']['id'])
       out_of_bounds_car_ids.add(car_id)
 
     # Throttle, if necessary.
     throttle_delay = pm.args.query_delay_s - (pm.deps.time.time() - start_time)
     if throttle_delay > 0:
-      logging.debug('Throttling for %s seconds.' % throttle_delay)
+      logger.debug('Throttling for %s seconds.' % throttle_delay)
       pm.deps.time.sleep(throttle_delay)
 
   # Alert by email if necessary.
