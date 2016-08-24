@@ -112,7 +112,7 @@ def parse_args(name, description, arg_defs, raw_args=sys.argv[1:]):
 
 
 def poll():
-  logger.debug('Polling...')
+  logger.info('Polling...')
   start_time = deps.time.time()
 
   if not callbacks:
