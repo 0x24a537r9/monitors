@@ -27,7 +27,7 @@ def start(raw_args=sys.argv[1:], raw_deps=DEFAULT_DEPS):
   monitor.start(
       'Geofence monitor',
       'Monitors cars, triggering an email alert if any leave their prescribed geofences.',
-      arg_defs=[{
+      raw_arg_defs=[{
         'name': 'car_ids',
         'type': parse_ids,
         'nargs': '+',

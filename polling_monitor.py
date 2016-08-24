@@ -11,7 +11,7 @@ import threading
 import time
 
 
-args, deps, callbacks, alive = None, None, [], False
+name, args, deps, callbacks, alive = '', None, None, [], False
 app = flask.Flask(__name__)
 logger = logging.getLogger('polling_monitor')
 
@@ -19,9 +19,10 @@ Deps = collections.namedtuple('Deps', ['requests', 'time'])
 DEFAULT_DEPS = Deps(requests=requests, time=time)
 
 
-def start(name, description, arg_defs=[], raw_args=sys.argv[1:], raw_deps=DEFAULT_DEPS):
-  global args, deps, alive
-  args = parse_args(name, description, arg_defs, raw_args)
+def start(raw_name, raw_description, raw_arg_defs=[], raw_args=sys.argv[1:], raw_deps=DEFAULT_DEPS):
+  global name, args, deps, alive
+  name = raw_name
+  args = parse_args(raw_description, raw_arg_defs, raw_args)
   deps = raw_deps
   alive = True
   set_up_logging()
@@ -57,7 +58,7 @@ def set_up_logging():
   logger.addHandler(error)
 
 
-def parse_args(name, description, arg_defs, raw_args=sys.argv[1:]):
+def parse_args(description, arg_defs, raw_args=sys.argv[1:]):
   parser = argparse.ArgumentParser(description=description)
   name_slug = name.lower().replace(' ', '_')
   arg_defs += [{
@@ -77,6 +78,14 @@ def parse_args(name, description, arg_defs, raw_args=sys.argv[1:]):
     'default': 5 * 60,
     'type': int,
     'help': 'The period (in seconds) with which to poll for status updates',
+  }, {
+    'name': '--min_poll_padding_period_s',
+    'dest': 'min_poll_padding_period_s',
+    'default': 10,
+    'type': int,
+    'help': 'The minimum period (in seconds) between when one polling operation finishes and the '
+            'next one begins. Used for alerting in case the polling method is slow and in danger '
+            'of overrunning the configured --poll_period_s.',
   }, {
     'name': '--mailgun_messages_endpoint',
     'dest': 'mailgun_messages_endpoint',
@@ -126,11 +135,27 @@ def poll():
     callback()
 
   if alive:
-    poll_delay = max(0, args.poll_period_s - (deps.time.time() - start_time))
-    threading.Timer(poll_delay, poll).start()
+    poll_delay = args.poll_period_s - (deps.time.time() - start_time)
+    if poll_delay < 0:
+      logger.error('Overran polling period by %ss.', abs(poll_delay))
+      alert('%s is overrunning' % name,
+            '%s is unable to poll as frequently as expected because the polling method is taking '
+            '%ss longer than the polling period (%ss). Either optimize the polling method to run '
+            'more quickly or configure the monitor with a longer polling period.' %
+            (name, abs(poll_delay), args.poll_period_s))
+    elif poll_delay <= args.min_poll_padding_period_s:
+      logger.warning('In danger of overrunning polling period. Only %ss left until next poll.',
+                     poll_delay)
+      alert('%s is in danger of overrunning' % name,
+            '%s is in danger of being unable to poll as frequently as expected because the polling '
+            'method is taking only %ss less than the polling period (%ss). Either optimize the '
+            'polling method to run more quickly or configure the monitor with a longer polling '
+            'period.' % (name, poll_delay, args.poll_period_s))
+    threading.Timer(max(0, poll_delay), poll).start()
 
 
 def alert(subject, text):
+  logger.info('Sending alert: "%s"', subject)
   deps.requests.post(
       args.mailgun_messages_endpoint,
       auth=('api', args.mailgun_api_key),
