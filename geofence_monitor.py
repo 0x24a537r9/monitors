@@ -87,7 +87,7 @@ def parse_args():
   args = parser.parse_args()
 
   # Flatten the car_ids args into a set.
-  args.car_ids = reduce(lambda acc, ids: acc | set(ids), args.car_ids, set())
+  args.car_ids = sorted(reduce(lambda acc, ids: acc | set(ids), args.car_ids, set()))
   return args
 
 
@@ -96,6 +96,8 @@ def poll():
   out_of_bounds_car_ids = set()
   for car_id in args.car_ids:
     start_time = time.time()
+
+    # Fetch the car's status.
     geojson = json.load(urllib2.urlopen(args.car_status_endpoint % car_id))
 
     # Extract the first Point feature in the GeoJSON response as the car's coordinates.
