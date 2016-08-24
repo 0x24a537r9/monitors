@@ -1,5 +1,6 @@
 import argparse
 import collections
+import datetime
 import flask
 import logging
 import logging.handlers
@@ -112,6 +113,9 @@ def parse_args(name, description, arg_defs, raw_args=sys.argv[1:]):
 
 
 def poll():
+  if not alive:
+    return
+
   logger.info('Polling...')
   start_time = deps.time.time()
 
@@ -150,6 +154,35 @@ def status():
 @app.route('/ok')
 def ok():
   return 'ok'
+
+
+@app.route('/silence')
+def silence():
+  duration_string = flask.request.args.get('duration', '5m')
+  duration_components = re.match(
+      r'^((?P<days>\d+?)d)?((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?$',
+      duration_string)
+  if not duration_components:
+    logger.error('Received invalid silence duration: "%s"', duration_string)
+    return 'Invalid silence duration: "%s"' % duration_string
+
+  global alive
+  alive = False
+  timedelta_args = dict((when, int(interval or '0'))
+                        for when, interval in duration_components.groupdict().iteritems())
+  threading.Timer(datetime.timedelta(**timedelta_args).total_seconds(), unsilence).start()
+
+  logger.info('Silenced for %s.', duration_string)
+  return 'Silenced for %s.' % duration_string
+
+
+@app.route('/unsilence')
+def unsilence():
+  logger.info('Unsilenced.')
+  global alive
+  alive = True
+  poll()
+  return 'Unsilenced'
 
 
 @app.route('/killkillkill')
