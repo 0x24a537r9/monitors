@@ -49,11 +49,11 @@ def set_up_logging():
   warning.setFormatter(formatter)
   logger.addHandler(warning)
 
-  ERROR = logging.handlers.TimedRotatingFileHandler(
+  error = logging.handlers.TimedRotatingFileHandler(
       '%s.ERROR.log' % args.log_file_prefix, when='d', interval=1, backupCount=7)
-  ERROR.setLevel(logging.ERROR)
-  ERROR.setFormatter(formatter)
-  logger.addHandler(ERROR)
+  error.setLevel(logging.ERROR)
+  error.setFormatter(formatter)
+  logger.addHandler(error)
 
 
 def parse_args(name, description, arg_defs, raw_args=sys.argv[1:]):
