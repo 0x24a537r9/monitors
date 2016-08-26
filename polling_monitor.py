@@ -10,32 +10,39 @@ import sys
 import threading
 import time
 
+name, args, deps, app, callbacks, poll_timer, silence_timer, is_alive = (
+    '', None, None, None, [], None, None, False)
 
-name, args, deps, callbacks, alive = '', None, None, [], False
 app = flask.Flask(__name__)
+app.config.from_envvar('FLASKR_SETTINGS', silent=True)
 logger = logging.getLogger('polling_monitor')
 
-Deps = collections.namedtuple('Deps', ['requests', 'time'])
-DEFAULT_DEPS = Deps(requests=requests, time=time)
+Deps = collections.namedtuple('Deps', ['requests', 'time', 'Timer'])
+DEFAULT_DEPS = Deps(requests=requests, time=time, Timer=threading.Timer)
 
 
 def start(raw_name, raw_description, raw_arg_defs=[], raw_args=sys.argv[1:], raw_deps=DEFAULT_DEPS):
-  global name, args, deps, alive
+  global name, args, deps, app, poll_timer, is_alive
   name = raw_name
   args = parse_args(raw_description, raw_arg_defs, raw_args)
   deps = raw_deps
-  alive = True
+
+  is_alive = True
   set_up_logging()
-  threading.Timer(1, poll).start()
-  app.run(port=args.port)
+  # Delay so that the Flask server is up before polling begins.
+  poll_timer = deps.Timer(1, poll)
+  poll_timer.start()
+  if not app.config.get('TESTING'):
+    app.run(port=args.port)
 
 
 def set_up_logging():
-  logger.setLevel(args.logging_level)
+  logger.handlers = []  # Clean up past handlers when repeatedly starting up in unit tests.
+  logger.setLevel(args.log_level)
   formatter = logging.Formatter('%(levelname)-8s %(asctime)s [%(name)s]: %(message)s')
 
   stdout = logging.StreamHandler(stream=sys.stdout)
-  stdout.setLevel(args.logging_level)
+  stdout.setLevel(args.log_level)
   stdout.setFormatter(formatter)
   logger.addHandler(stdout)
 
@@ -75,14 +82,14 @@ def parse_args(description, arg_defs, raw_args=sys.argv[1:]):
   }, {
     'name': '--poll_period_s',
     'dest': 'poll_period_s',
-    'default': 5 * 60,
-    'type': int,
+    'default': 5 * 60.0,
+    'type': float,
     'help': 'The period (in seconds) with which to poll for status updates',
   }, {
     'name': '--min_poll_padding_period_s',
     'dest': 'min_poll_padding_period_s',
-    'default': 10,
-    'type': int,
+    'default': 10.0,
+    'type': float,
     'help': 'The minimum period (in seconds) between when one polling operation finishes and the '
             'next one begins. Used for alerting in case the polling method is slow and in danger '
             'of overrunning the configured --poll_period_s.',
@@ -110,7 +117,7 @@ def parse_args(description, arg_defs, raw_args=sys.argv[1:]):
     'help': 'The prefix for the file used for logging',
   }, {
     'name': '--log',
-    'dest': 'logging_level',
+    'dest': 'log_level',
     'default': logging.INFO,
     'type': lambda level: getattr(logging, level),
     'choices': (logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL),
@@ -122,7 +129,7 @@ def parse_args(description, arg_defs, raw_args=sys.argv[1:]):
 
 
 def poll():
-  if not alive:
+  if not is_alive:
     return
 
   logger.info('Polling...')
@@ -134,7 +141,7 @@ def poll():
   for callback in callbacks:
     callback()
 
-  if alive:
+  if is_alive:
     poll_delay = args.poll_period_s - (deps.time.time() - start_time)
     if poll_delay < 0:
       logger.error('Overran polling period by %ss.', abs(poll_delay))
@@ -151,7 +158,10 @@ def poll():
             'method is taking only %ss less than the polling period (%ss). Either optimize the '
             'polling method to run more quickly or configure the monitor with a longer polling '
             'period.' % (name, poll_delay, args.poll_period_s))
-    threading.Timer(max(0, poll_delay), poll).start()
+
+    global poll_timer
+    poll_timer = deps.Timer(max(0, poll_delay), poll)
+    poll_timer.start()
 
 
 def alert(subject, text):
@@ -168,12 +178,13 @@ def alert(subject, text):
 
 
 def reset():
-  args, deps, callbacks, alive = None, None, [], False
-
-
-@app.route('/')
-def status():
-  return 'Not yet implemented'
+  global name, args, deps, callbacks, poll_timer, silence_timer, is_alive
+  if poll_timer:
+    poll_timer.cancel()
+  if silence_timer:
+    silence_timer.cancel()
+  name, args, deps, callbacks, poll_timer, silence_timer, is_alive = (
+      '', None, None, [], None, None, False)
 
 
 @app.route('/ok')
@@ -182,32 +193,42 @@ def ok():
 
 
 @app.route('/silence')
-def silence():
-  duration_string = flask.request.args.get('duration', '1h')
+@app.route('/silence/<duration>')
+def silence(duration='1h'):
+  global is_alive, silence_timer
+  if silence_timer:
+    silence_timer.cancel()
+
   duration_components = re.match(
       r'^((?P<days>\d+?)d)?((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?$',
-      duration_string)
+      duration)
   if not duration_components:
-    logger.error('Received invalid silence duration: "%s"', duration_string)
-    return 'Invalid silence duration: "%s"' % duration_string
+    logger.error('Received invalid silence duration: "%s"', duration)
+    return 'Invalid silence duration: "%s"' % duration
 
-  global alive
-  alive = False
+  is_alive = False
   timedelta_args = dict((when, int(interval or '0'))
                         for when, interval in duration_components.groupdict().iteritems())
-  threading.Timer(datetime.timedelta(**timedelta_args).total_seconds(), unsilence).start()
+  silence_timer = deps.Timer(datetime.timedelta(**timedelta_args).total_seconds(),
+                                       unsilence)
+  silence_timer.start()
 
-  logger.info('Silenced for %s.', duration_string)
-  return 'Silenced for %s.' % duration_string
+  logger.info('Silenced for %s.', duration)
+  return 'Silenced for %s.' % duration
 
 
 @app.route('/unsilence')
 def unsilence():
+  global is_alive
+  if is_alive:
+    return 'Already unsilenced.'
+  elif silence_timer:
+    silence_timer.cancel()
+
   logger.info('Unsilenced.')
-  global alive
-  alive = True
+  is_alive = True
   poll()
-  return 'Unsilenced'
+  return 'Unsilenced.'
 
 
 @app.route('/killkillkill')
@@ -215,8 +236,8 @@ def kill():
   logger.info('Received killkillkill request. Shutting down...')
   func = flask.request.environ.get('werkzeug.server.shutdown')
   if func is None:
-    raise RuntimeError('Not running with the Werkzeug Server')
+    flask.abort(404)
   func()
-  global alive
-  alive = False
+  reset()
+  logging.shutdown()
   exit(-1)

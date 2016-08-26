@@ -12,8 +12,8 @@ import time
 import urllib
 
 
+app = monitor.app
 logger = logging.getLogger('polling_monitor.geofence_monitor')
-
 
 Deps = collections.namedtuple('Deps', ('geometry',) + monitor.Deps._fields)
 DEFAULT_DEPS = Deps(geometry=shapely.geometry, **monitor.DEFAULT_DEPS._asdict())
@@ -53,7 +53,7 @@ def parse_ids(arg):
   match = re.match(r'^(\d+)-(\d+)$', arg)
   try:
     return range(int(match.group(1)), int(match.group(2)) + 1) if match else [int(arg)]
-  except e:
+  except:
     raise ValueError('Invalid ID arg: "%s"' % arg)
 
 

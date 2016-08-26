@@ -14,7 +14,7 @@ The geofencing monitor runs as a very simple [Flask](http://flask.pocoo.org/) HT
 | *Route*         | *Function* |
 |-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `/`             | The default route, providing basic access to the current alerting/silencing status, as well as the day's event log.|
-| `/silence`      | Silences any alerts by temporarily suspending polling. Silences 1 hour by default, configured with the `duration` query param using basic time strings such as `30s`, `10m15s`, `5h`, and `1d12h`. For example, `GET`ting `/silence?duration=1h30m` will silence the monitor for exactly 1 hour and 30 minutes. |
+| `/silence`      | Silences any alerts by temporarily suspending polling. Silences 1 hour by default, configured in the path using basic time strings such as `30s`, `10m15s`, `5h`, and `1d12h`. For example, `GET`ting `/silence/1h30m` will silence the monitor for exactly 1 hour and 30 minutes. |
 | `/unsilence`    | Unsilences any alerts by immediately resuming standard polling.|
 | `/ok`           | Simply returns "ok" if the server is up. Used by `ok_monitor.py` to ensure that the monitor itself is up and running.|
 | `/killkillkill` | Kills the server and monitor.|
