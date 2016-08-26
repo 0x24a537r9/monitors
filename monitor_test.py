@@ -48,12 +48,12 @@ class MockTime():
 
 class MonitorTest(unittest.TestCase):
   def setUp(self):
-    monitor.app.config['TESTING'] = True
-    self.app = monitor.app.test_client()
+    monitor.server.config['TESTING'] = True
+    self.server = monitor.server.test_client()
     self.deps = monitor.Deps(requests=MockRequests(), time=MockTime(), Timer=MockTimer)
 
   def tearDown(self):
-    self.app, self.deps = None, None
+    self.server, self.deps = None, None
     monitor.reset()
 
   def test_parse_args_defaults(self):
@@ -265,7 +265,7 @@ class MonitorTest(unittest.TestCase):
         })
 
   def test_ok(self):
-    response = self.app.get('/ok')
+    response = self.server.get('/ok')
     self.assertEqual(response.data, 'ok')
 
   def test_silence_default(self):
@@ -283,7 +283,7 @@ class MonitorTest(unittest.TestCase):
 
     poll.reset_mock()
     monitor.poll_timer.mock_tick(5)
-    response = self.app.get('/silence')
+    response = self.server.get('/silence')
     self.assertEqual(response.data, 'Silenced for 1h.')
 
     monitor.poll_timer.mock_tick(60 * 60 - 5)
@@ -309,7 +309,7 @@ class MonitorTest(unittest.TestCase):
 
     poll.reset_mock()
     monitor.poll_timer.mock_tick(5)
-    response = self.app.get('/silence/1h30m15s')
+    response = self.server.get('/silence/1h30m15s')
     self.assertEqual(response.data, 'Silenced for 1h30m15s.')
 
     monitor.poll_timer.mock_tick((60 * 60) + (30 * 60) + (15) - 5)
@@ -335,14 +335,14 @@ class MonitorTest(unittest.TestCase):
 
     poll.reset_mock()
     monitor.poll_timer.mock_tick(5)
-    response = self.app.get('/silence')
+    response = self.server.get('/silence')
     self.assertEqual(response.data, 'Silenced for 1h.')
 
     monitor.poll_timer.mock_tick(30 * 60)
     monitor.silence_timer.mock_tick(30 * 60)
     poll.assert_not_called()
 
-    response = self.app.get('/silence')
+    response = self.server.get('/silence')
     self.assertEqual(response.data, 'Silenced for 1h.')
 
     monitor.poll_timer.mock_tick(60 * 60 - 5)
@@ -368,14 +368,14 @@ class MonitorTest(unittest.TestCase):
 
     poll.reset_mock()
     monitor.poll_timer.mock_tick(5)
-    response = self.app.get('/silence')
+    response = self.server.get('/silence')
     self.assertEqual(response.data, 'Silenced for 1h.')
 
     monitor.poll_timer.mock_tick(30 * 60)
     monitor.silence_timer.mock_tick(30 * 60)
     poll.assert_not_called()
 
-    response = self.app.get('/unsilence')
+    response = self.server.get('/unsilence')
     self.assertEqual(response.data, 'Unsilenced.')
     poll.assert_called_once()
 
@@ -394,7 +394,7 @@ class MonitorTest(unittest.TestCase):
 
     poll.reset_mock()
     monitor.poll_timer.mock_tick(5)
-    response = self.app.get('/unsilence')
+    response = self.server.get('/unsilence')
     self.assertEqual(response.data, 'Already unsilenced.')
     poll.assert_not_called()
 
@@ -403,7 +403,7 @@ class MonitorTest(unittest.TestCase):
     poll.assert_called_once()
 
   def test_kill_in_prod(self):
-    response = self.app.get('/killkillkill')
+    response = self.server.get('/killkillkill')
     self.assertEquals(response.status_code, 404)
 
 

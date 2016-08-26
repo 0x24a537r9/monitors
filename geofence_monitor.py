@@ -12,7 +12,7 @@ import time
 import urllib
 
 
-app = monitor.app
+server = monitor.server
 logger = logging.getLogger('monitor.geofence_monitor')
 
 Deps = collections.namedtuple('Deps', ('geometry',) + monitor.Deps._fields)

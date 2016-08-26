@@ -10,11 +10,11 @@ import sys
 import threading
 import time
 
-name, args, deps, app, callbacks, poll_timer, silence_timer, is_alive = (
+name, args, deps, server, callbacks, poll_timer, silence_timer, is_alive = (
     '', None, None, None, [], None, None, False)
 
-app = flask.Flask(__name__)
-app.config.from_envvar('FLASKR_SETTINGS', silent=True)
+server = flask.Flask(__name__)
+server.config.from_envvar('FLASKR_SETTINGS', silent=True)
 logger = logging.getLogger('monitor')
 
 Deps = collections.namedtuple('Deps', ['requests', 'time', 'Timer'])
@@ -22,7 +22,7 @@ DEFAULT_DEPS = Deps(requests=requests, time=time, Timer=threading.Timer)
 
 
 def start(raw_name, raw_description, raw_arg_defs=[], raw_args=sys.argv[1:], raw_deps=DEFAULT_DEPS):
-  global name, args, deps, app, poll_timer, is_alive
+  global name, args, deps, server, poll_timer, is_alive
   name = raw_name
   args = parse_args(raw_description, raw_arg_defs, raw_args)
   deps = raw_deps
@@ -32,8 +32,8 @@ def start(raw_name, raw_description, raw_arg_defs=[], raw_args=sys.argv[1:], raw
   # Delay so that the Flask server is up before polling begins.
   poll_timer = deps.Timer(1, poll)
   poll_timer.start()
-  if not app.config.get('TESTING'):
-    app.run(port=args.port)
+  if not server.config.get('TESTING'):
+    server.run(port=args.port)
 
 
 def set_up_logging():
@@ -187,13 +187,13 @@ def reset():
       '', None, None, [], None, None, False)
 
 
-@app.route('/ok')
+@server.route('/ok')
 def ok():
   return 'ok'
 
 
-@app.route('/silence')
-@app.route('/silence/<duration>')
+@server.route('/silence')
+@server.route('/silence/<duration>')
 def silence(duration='1h'):
   global is_alive, silence_timer
   if silence_timer:
@@ -217,7 +217,7 @@ def silence(duration='1h'):
   return 'Silenced for %s.' % duration
 
 
-@app.route('/unsilence')
+@server.route('/unsilence')
 def unsilence():
   global is_alive
   if is_alive:
@@ -231,7 +231,7 @@ def unsilence():
   return 'Unsilenced.'
 
 
-@app.route('/killkillkill')
+@server.route('/killkillkill')
 def kill():
   logger.info('Received killkillkill request. Shutting down...')
   func = flask.request.environ.get('werkzeug.server.shutdown')
