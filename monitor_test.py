@@ -1,64 +1,25 @@
 import flask
 import logging
 import mock
+import mocks
 import monitor
 import unittest
-
-
-class MockRequests():
-  def post(self, url, auth=None, data={}):
-    raise NotImplementedError('post() should be mocked out')
-
-
-class MockTimer():
-  def __init__(self, seconds, fn):
-    self.seconds = seconds
-    self.fn = fn
-    self.has_started = False
-    self.has_stopped = False
-
-  def start(self):
-    if self.has_started:
-      raise RuntimeError('threads can only be started once')
-    self.has_started = True
-
-  def cancel(self):
-    self.has_stopped = True
-
-  def mock_tick(self, seconds):
-    if not self.has_started or self.has_stopped:
-      return
-
-    self.seconds -= seconds
-    if self.seconds <= 0:
-      self.fn()
-      self.has_stopped = True
-
-
-class MockTime():
-  def __init__(self):
-    self.now = 0.0
-
-  def time(self):
-    return self.now
-
-  def mock_tick(self, seconds):
-    self.now += seconds
 
 
 class MonitorTest(unittest.TestCase):
   def setUp(self):
     monitor.server.config['TESTING'] = True
     self.server = monitor.server.test_client()
-    self.deps = monitor.Deps(requests=MockRequests(), time=MockTime(), Timer=MockTimer)
+    mock.patch('threading.Timer', mocks.MockTimer).start()
 
   def tearDown(self):
-    self.server, self.deps = None, None
+    self.server = None
+    mock.patch.stopall()
     monitor.reset()
 
   def test_parse_args_defaults(self):
     monitor.callbacks.append(lambda: None)
-    monitor.start('Test monitor', 'Test description', [], [], self.deps)
+    monitor.start('Test monitor', 'Test description', [], [])
 
     self.assertEqual(monitor.args.alert_emails, ['Cameron Behar <0x24a537r9@gmail.com>'])
     self.assertEqual(monitor.args.monitor_email,
@@ -73,7 +34,6 @@ class MonitorTest(unittest.TestCase):
     self.assertEqual(monitor.args.log_file_prefix, 'test_monitor')
     self.assertEqual(monitor.args.log_level, logging.INFO)
 
-
   def test_parse_args_with_complex_args(self):
     monitor.callbacks.append(lambda: None)
     monitor.start('Test monitor', 'Test description', [], [
@@ -86,7 +46,7 @@ class MonitorTest(unittest.TestCase):
       '--port=8080',
       '--log_file_prefix=other_monitor',
       '--log=DEBUG',
-    ], self.deps)
+    ])
 
     self.assertEqual(monitor.args.alert_emails, ['test1@test.com', 'test2@test.com'])
     self.assertEqual(monitor.args.monitor_email, 'other_monitor@test.com')
@@ -119,7 +79,7 @@ class MonitorTest(unittest.TestCase):
     }], [
       '--arg_a=non-default-a',
       '--arg_b=1.618'
-    ], self.deps)
+    ])
 
     self.assertEqual(monitor.args.arg_a, 'non-default-a')
     self.assertEqual(monitor.args.renamed_arg_b, 1.618)
@@ -127,7 +87,7 @@ class MonitorTest(unittest.TestCase):
 
   def test_polling_with_no_callbacks(self):
     monitor.start('Test monitor', 'Test description', [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'], self.deps)
+                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     monitor.poll_timer.mock_tick(0.5)
 
@@ -138,7 +98,7 @@ class MonitorTest(unittest.TestCase):
     poll = mock.Mock()
     monitor.callbacks.append(poll)
     monitor.start('Test monitor', 'Test description', [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'], self.deps)
+                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     poll.assert_not_called()
     monitor.poll_timer.mock_tick(0.5)
@@ -161,7 +121,7 @@ class MonitorTest(unittest.TestCase):
     monitor.callbacks.append(poll_0)
     monitor.callbacks.append(poll_1)
     monitor.start('Test monitor', 'Test description', [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'], self.deps)
+                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     poll_0.assert_not_called()
     poll_1.assert_not_called()
@@ -185,84 +145,87 @@ class MonitorTest(unittest.TestCase):
       poll_1.assert_called_once()
 
   def test_polling_overrunning_alert(self):
-    def slow_operation():
-      self.deps.time.mock_tick(15)
-    monitor.callbacks.append(slow_operation)
-    self.deps.requests.post = mock.Mock()
+    mock_time = mocks.MockTime()
+    with mock.patch('time.time', new=mock_time.time):
+      def slow_operation():
+        mock_time.mock_tick(15)
+      monitor.callbacks.append(slow_operation)
+    
+      with mock.patch('requests.post') as mock_post:
+        monitor.start('Test monitor', 'Test description', [], [
+          '--alert_emails=test1@test.com,test2@test.com',
+          '--monitor_email=other_monitor@test.com',
+          '--poll_period_s=10',
+          '--min_poll_padding_period_s=5',
+          '--mailgun_messages_endpoint=http://test.com/send_email',
+          '--mailgun_api_key=1234567890',
+        ])
 
-    monitor.start('Test monitor', 'Test description', [], [
-      '--alert_emails=test1@test.com,test2@test.com',
-      '--monitor_email=other_monitor@test.com',
-      '--poll_period_s=10',
-      '--min_poll_padding_period_s=5',
-      '--mailgun_messages_endpoint=http://test.com/send_email',
-      '--mailgun_api_key=1234567890',
-    ], self.deps)
-
-    monitor.poll_timer.mock_tick(1)
-    self.deps.requests.post.assert_called_once_with(
-        'http://test.com/send_email',
-        auth=('api', '1234567890'),
-        data={
-          'from': 'other_monitor@test.com',
-          'to': 'test1@test.com, test2@test.com',
-          'subject': '[ALERT] Test monitor is overrunning',
-          'text': 'Test monitor is unable to poll as frequently as expected because the polling '
-                  'method is taking 5.0s longer than the polling period (10.0s). Either optimize '
-                  'the polling method to run more quickly or configure the monitor with a longer '
-                  'polling period.',
-        })
+        monitor.poll_timer.mock_tick(1)
+        mock_post.assert_called_once_with(
+            'http://test.com/send_email',
+            auth=('api', '1234567890'),
+            data={
+              'from': 'other_monitor@test.com',
+              'to': 'test1@test.com, test2@test.com',
+              'subject': '[ALERT] Test monitor is overrunning',
+              'text': 'Test monitor is unable to poll as frequently as expected because the '
+                      'polling method is taking 5.0s longer than the polling period (10.0s). '
+                      'Either optimize the polling method to run more quickly or configure the '
+                      'monitor with a longer polling period.',
+            })
 
   def test_polling_in_danger_of_overrunning_alert(self):
-    def slow_operation():
-      self.deps.time.mock_tick(8)
-    monitor.callbacks.append(slow_operation)
-    self.deps.requests.post = mock.Mock()
+    mock_time = mocks.MockTime()
+    with mock.patch('time.time', new=mock_time.time):
+      def slow_operation():
+        mock_time.mock_tick(8)
+      monitor.callbacks.append(slow_operation)
 
-    monitor.start('Test monitor', 'Test description', [], [
-      '--alert_emails=test1@test.com,test2@test.com',
-      '--monitor_email=other_monitor@test.com',
-      '--poll_period_s=10',
-      '--min_poll_padding_period_s=5',
-      '--mailgun_messages_endpoint=http://test.com/send_email',
-      '--mailgun_api_key=1234567890',
-    ], self.deps)
+      with mock.patch('requests.post') as mock_post:
+        monitor.start('Test monitor', 'Test description', [], [
+          '--alert_emails=test1@test.com,test2@test.com',
+          '--monitor_email=other_monitor@test.com',
+          '--poll_period_s=10',
+          '--min_poll_padding_period_s=5',
+          '--mailgun_messages_endpoint=http://test.com/send_email',
+          '--mailgun_api_key=1234567890',
+        ])
 
-    monitor.poll_timer.mock_tick(1)
-    self.deps.requests.post.assert_called_once_with(
-        'http://test.com/send_email',
-        auth=('api', '1234567890'),
-        data={
-          'from': 'other_monitor@test.com',
-          'to': 'test1@test.com, test2@test.com',
-          'subject': '[ALERT] Test monitor is in danger of overrunning',
-          'text': 'Test monitor is in danger of being unable to poll as frequently as expected '
-                  'because the polling method is taking only 2.0s less than the polling period '
-                  '(10.0s). Either optimize the polling method to run more quickly or configure '
-                  'the monitor with a longer polling period.',
-        })
+        monitor.poll_timer.mock_tick(1)
+        mock_post.assert_called_once_with(
+            'http://test.com/send_email',
+            auth=('api', '1234567890'),
+            data={
+              'from': 'other_monitor@test.com',
+              'to': 'test1@test.com, test2@test.com',
+              'subject': '[ALERT] Test monitor is in danger of overrunning',
+              'text': 'Test monitor is in danger of being unable to poll as frequently as expected '
+                      'because the polling method is taking only 2.0s less than the polling period '
+                      '(10.0s). Either optimize the polling method to run more quickly or '
+                      'configure the monitor with a longer polling period.',
+            })
 
   def test_alert(self):
-    self.deps.requests.post = mock.Mock()
-    
-    monitor.start('Test monitor', 'Test description', [], [
-      '--alert_emails=test1@test.com,test2@test.com',
-      '--monitor_email=other_monitor@test.com',
-      '--mailgun_messages_endpoint=http://test.com/send_email',
-      '--mailgun_api_key=1234567890',
-    ], self.deps)
+    with mock.patch('requests.post') as mock_post:
+      monitor.start('Test monitor', 'Test description', [], [
+        '--alert_emails=test1@test.com,test2@test.com',
+        '--monitor_email=other_monitor@test.com',
+        '--mailgun_messages_endpoint=http://test.com/send_email',
+        '--mailgun_api_key=1234567890',
+      ])
 
-    monitor.alert('Test subject', 'Test message')
+      monitor.alert('Test subject', 'Test message')
 
-    self.deps.requests.post.assert_called_once_with(
-        'http://test.com/send_email',
-        auth=('api', '1234567890'),
-        data={
-          'from': 'other_monitor@test.com',
-          'to': 'test1@test.com, test2@test.com',
-          'subject': '[ALERT] Test subject',
-          'text': 'Test message',
-        })
+      mock_post.assert_called_once_with(
+          'http://test.com/send_email',
+          auth=('api', '1234567890'),
+          data={
+            'from': 'other_monitor@test.com',
+            'to': 'test1@test.com, test2@test.com',
+            'subject': '[ALERT] Test subject',
+            'text': 'Test message',
+          })
 
   def test_ok(self):
     response = self.server.get('/ok')
@@ -272,7 +235,7 @@ class MonitorTest(unittest.TestCase):
     poll = mock.Mock()
     monitor.callbacks.append(poll)
     monitor.start('Test monitor', 'Test description', [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'], self.deps)
+                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     monitor.poll_timer.mock_tick(1)
     poll.assert_called_once()
@@ -298,7 +261,7 @@ class MonitorTest(unittest.TestCase):
     poll = mock.Mock()
     monitor.callbacks.append(poll)
     monitor.start('Test monitor', 'Test description', [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'], self.deps)
+                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     monitor.poll_timer.mock_tick(1)
     poll.assert_called_once()
@@ -324,7 +287,7 @@ class MonitorTest(unittest.TestCase):
     poll = mock.Mock()
     monitor.callbacks.append(poll)
     monitor.start('Test monitor', 'Test description', [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'], self.deps)
+                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     monitor.poll_timer.mock_tick(1)
     poll.assert_called_once()
@@ -357,7 +320,7 @@ class MonitorTest(unittest.TestCase):
     poll = mock.Mock()
     monitor.callbacks.append(poll)
     monitor.start('Test monitor', 'Test description', [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'], self.deps)
+                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     monitor.poll_timer.mock_tick(1)
     poll.assert_called_once()
@@ -387,7 +350,7 @@ class MonitorTest(unittest.TestCase):
     poll = mock.Mock()
     monitor.callbacks.append(poll)
     monitor.start('Test monitor', 'Test description', [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'], self.deps)
+                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     monitor.poll_timer.mock_tick(1)
     poll.assert_called_once()

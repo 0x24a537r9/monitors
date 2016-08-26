@@ -1,5 +1,3 @@
-import argparse
-import collections
 import flask
 import logging
 import monitor
@@ -7,22 +5,17 @@ import re
 import requests
 import shapely.geometry
 import sys
-import threading
 import time
-import urllib
 
 
 server = monitor.server
 logger = logging.getLogger('monitor.geofence_monitor')
 
-Deps = collections.namedtuple('Deps', ('geometry',) + monitor.Deps._fields)
-DEFAULT_DEPS = Deps(geometry=shapely.geometry, **monitor.DEFAULT_DEPS._asdict())
-
 INVALID_FETCH_RESPONSE = 'INVALID_FETCH_RESPONSE'
 NO_CAR_COORDS = 'NO_CAR_COORDS'
 
 
-def start(raw_args=sys.argv[1:], raw_deps=DEFAULT_DEPS):
+def start(raw_args=sys.argv[1:]):
   monitor.callbacks.append(poll)
   monitor.start(
       'Geofence monitor',
@@ -45,8 +38,7 @@ def start(raw_args=sys.argv[1:], raw_deps=DEFAULT_DEPS):
         'type': lambda arg: 1 / float(arg),
         'help': 'The maximum QPS with which to query the server for individual car statuses',
       }],
-      raw_args=raw_args,
-      raw_deps=DEFAULT_DEPS)
+      raw_args=raw_args)
 
 
 def parse_ids(arg):
@@ -65,11 +57,11 @@ def poll():
   # Flatten the car_ids args into a single sorted list of unique IDs.
   car_ids = sorted(reduce(lambda acc, ids: acc | set(ids), monitor.args.car_ids, set()))
   for car_id in car_ids:
-    start_time = monitor.deps.time.time()
+    start_time = time.time()
 
     # Fetch the car's status.
     logger.debug('Fetching status for car %s.' % car_id)
-    response = monitor.deps.requests.get(monitor.args.car_status_endpoint % car_id)
+    response = requests.get(monitor.args.car_status_endpoint % car_id)
     if response.status_code != 200:
       logger.error('Received %s HTTP code for car %s with response: %s',
                    response.status_code, car_id, response.text)
@@ -90,17 +82,17 @@ def poll():
                  if feature['geometry']['type'] == 'Polygon']
 
     # Test whether the car is outside its geofence, marking if necessary.
-    shape = monitor.deps.geometry.shape
+    shape = shapely.geometry.shape
     if not any(shape(geofence['geometry']).contains(shape(car['geometry']))
                for geofence in geofences):
       logger.info('Car %s was found outside of its geofences.', car['properties']['id'])
       car_ids_out_of_bounds.append(car_id)
 
     # Throttle, if necessary.
-    throttle_delay = monitor.args.query_delay_s - (monitor.deps.time.time() - start_time)
+    throttle_delay = monitor.args.query_delay_s - (time.time() - start_time)
     if throttle_delay > 0:
       logger.debug('Throttling for %s seconds.' % throttle_delay)
-      monitor.deps.time.sleep(throttle_delay)
+      time.sleep(throttle_delay)
 
   # Alert by email if necessary.
   if car_ids_out_of_bounds:

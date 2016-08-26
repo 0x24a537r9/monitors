@@ -1,5 +1,4 @@
 import argparse
-import collections
 import datetime
 import flask
 import logging
@@ -10,27 +9,23 @@ import sys
 import threading
 import time
 
-name, args, deps, server, callbacks, poll_timer, silence_timer, is_alive = (
-    '', None, None, None, [], None, None, False)
+name, args, server, callbacks, poll_timer, silence_timer, is_alive = (
+    '', None, None, [], None, None, False)
 
 server = flask.Flask(__name__)
 server.config.from_envvar('FLASKR_SETTINGS', silent=True)
 logger = logging.getLogger('monitor')
 
-Deps = collections.namedtuple('Deps', ['requests', 'time', 'Timer'])
-DEFAULT_DEPS = Deps(requests=requests, time=time, Timer=threading.Timer)
 
-
-def start(raw_name, raw_description, raw_arg_defs=[], raw_args=sys.argv[1:], raw_deps=DEFAULT_DEPS):
-  global name, args, deps, server, poll_timer, is_alive
+def start(raw_name, raw_description, raw_arg_defs=[], raw_args=sys.argv[1:]):
+  global name, args, server, poll_timer, is_alive
   name = raw_name
   args = parse_args(raw_description, raw_arg_defs, raw_args)
-  deps = raw_deps
 
   is_alive = True
   set_up_logging()
   # Delay so that the Flask server is up before polling begins.
-  poll_timer = deps.Timer(1, poll)
+  poll_timer = threading.Timer(1, poll)
   poll_timer.start()
   if not server.config.get('TESTING'):
     server.run(port=args.port)
@@ -133,7 +128,7 @@ def poll():
     return
 
   logger.info('Polling...')
-  start_time = deps.time.time()
+  start_time = time.time()
 
   if not callbacks:
     logger.critical('No polling callbacks implemented.')
@@ -142,7 +137,7 @@ def poll():
     callback()
 
   if is_alive:
-    poll_delay = args.poll_period_s - (deps.time.time() - start_time)
+    poll_delay = args.poll_period_s - (time.time() - start_time)
     if poll_delay < 0:
       logger.error('Overran polling period by %ss.', abs(poll_delay))
       alert('%s is overrunning' % name,
@@ -160,13 +155,13 @@ def poll():
             'period.' % (name, poll_delay, args.poll_period_s))
 
     global poll_timer
-    poll_timer = deps.Timer(max(0, poll_delay), poll)
+    poll_timer = threading.Timer(max(0, poll_delay), poll)
     poll_timer.start()
 
 
 def alert(subject, text):
   logger.info('Sending alert: "%s"', subject)
-  deps.requests.post(
+  requests.post(
       args.mailgun_messages_endpoint,
       auth=('api', args.mailgun_api_key),
       data={
@@ -178,13 +173,13 @@ def alert(subject, text):
 
 
 def reset():
-  global name, args, deps, callbacks, poll_timer, silence_timer, is_alive
+  global name, args, callbacks, poll_timer, silence_timer, is_alive
   if poll_timer:
     poll_timer.cancel()
   if silence_timer:
     silence_timer.cancel()
-  name, args, deps, callbacks, poll_timer, silence_timer, is_alive = (
-      '', None, None, [], None, None, False)
+  name, args, callbacks, poll_timer, silence_timer, is_alive = (
+      '', None, [], None, None, False)
 
 
 @server.route('/ok')
@@ -209,8 +204,8 @@ def silence(duration='1h'):
   is_alive = False
   timedelta_args = dict((when, int(interval or '0'))
                         for when, interval in duration_components.groupdict().iteritems())
-  silence_timer = deps.Timer(datetime.timedelta(**timedelta_args).total_seconds(),
-                                       unsilence)
+  silence_timer = threading.Timer(datetime.timedelta(**timedelta_args).total_seconds(),
+                                  unsilence)
   silence_timer.start()
 
   logger.info('Silenced for %s.', duration)
