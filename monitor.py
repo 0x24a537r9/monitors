@@ -15,7 +15,7 @@ name, args, deps, app, callbacks, poll_timer, silence_timer, is_alive = (
 
 app = flask.Flask(__name__)
 app.config.from_envvar('FLASKR_SETTINGS', silent=True)
-logger = logging.getLogger('polling_monitor')
+logger = logging.getLogger('monitor')
 
 Deps = collections.namedtuple('Deps', ['requests', 'time', 'Timer'])
 DEFAULT_DEPS = Deps(requests=requests, time=time, Timer=threading.Timer)

@@ -2,7 +2,7 @@ import argparse
 import collections
 import flask
 import logging
-import polling_monitor as monitor
+import monitor
 import re
 import requests
 import shapely.geometry
@@ -13,7 +13,7 @@ import urllib
 
 
 app = monitor.app
-logger = logging.getLogger('polling_monitor.geofence_monitor')
+logger = logging.getLogger('monitor.geofence_monitor')
 
 Deps = collections.namedtuple('Deps', ('geometry',) + monitor.Deps._fields)
 DEFAULT_DEPS = Deps(geometry=shapely.geometry, **monitor.DEFAULT_DEPS._asdict())

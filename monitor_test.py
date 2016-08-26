@@ -1,7 +1,7 @@
 import flask
 import logging
 import mock
-import polling_monitor as monitor
+import monitor
 import unittest
 
 
@@ -46,7 +46,7 @@ class MockTime():
     self.now += seconds
 
 
-class PollingMonitorTest(unittest.TestCase):
+class MonitorTest(unittest.TestCase):
   def setUp(self):
     monitor.app.config['TESTING'] = True
     self.app = monitor.app.test_client()
@@ -264,13 +264,9 @@ class PollingMonitorTest(unittest.TestCase):
           'text': 'Test message',
         })
 
-  def test_status(self):
-    response = self.app.get('/')
-    self.assertEqual(response.data, 'Not yet implemented')
-
   def test_ok(self):
-    response = self.app.get('/')
-    self.assertEqual(response.data, 'Not yet implemented')
+    response = self.app.get('/ok')
+    self.assertEqual(response.data, 'ok')
 
   def test_silence_default(self):
     poll = mock.Mock()
