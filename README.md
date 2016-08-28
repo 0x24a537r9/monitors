@@ -28,6 +28,11 @@ Since monitors only provide security when they're running, I've also implemented
 
     python ok_monitor.py http://localhost:5000 --port=5001  --poll_period_s=10 --min_poll_padding_period_s=0 
 
+## Tests
+This repo is fully unit tested. To run the native Python `unittest`-based tests, run:
+
+    python monitor_test.py && python geofence_monitor_test.py && python ok_monitor_test.py
+
 ## Explanation
 I know this repo is significantly overengineered for the task of an interview question, but it was a fun exercise, and I've needed this kind of monitoring framework for my own projects anyway, so it was a good chance to kill two birds with one stone. That said, if you'd like to see what I would've created with less time available to me, check out the code at some of my [earlier commits](https://github.com/x2y/skurt/blob/8129c30419d83f67cf64426a2bf6f8511ba4eb9f/geofence_monitor.py).
 

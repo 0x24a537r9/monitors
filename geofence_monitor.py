@@ -71,7 +71,7 @@ def poll():
       continue
 
     if response.status_code != 200:
-      logger.error('Received %s HTTP code for car %s with response: %s',
+      logger.error('Received %s HTTP code for car %s with response: "%s"',
                    response.status_code, car_id, response.text)
       car_id_errors.append((car_id, INVALID_FETCH_RESPONSE))
       continue
@@ -81,7 +81,7 @@ def poll():
     car = next((feature for feature in geojson['features']
                 if feature['geometry']['type'] == 'Point'), None)
     if not car:
-      logger.error('No car coordinates for car %s in status response: %s', car_id, response.text)
+      logger.error('No car coordinates for car %s in status response: "%s"', car_id, response.text)
       car_id_errors.append((car_id, NO_CAR_COORDS))
       continue
 
