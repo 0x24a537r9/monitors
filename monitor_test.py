@@ -174,7 +174,8 @@ class MonitorTest(unittest.TestCase):
                       'polling method is taking 5.0s longer than the polling period (10.0s). '
                       'Either optimize the polling method to run more quickly or configure the '
                       'monitor with a longer polling period.',
-            })
+            },
+            timeout=10)
 
   def test_polling_in_danger_of_overrunning_alert(self):
     mock_time = mocks.MockTime()
@@ -205,7 +206,8 @@ class MonitorTest(unittest.TestCase):
                       'because the polling method is taking only 2.0s less than the polling period '
                       '(10.0s). Either optimize the polling method to run more quickly or '
                       'configure the monitor with a longer polling period.'
-            })
+            },
+            timeout=10)
 
   def test_alert(self):
     with mock.patch('requests.post') as mock_post:
@@ -226,7 +228,8 @@ class MonitorTest(unittest.TestCase):
             'to': 'test1@test.com, test2@test.com',
             'subject': '[ALERT] Test subject',
             'text': 'Test message',
-          })
+          },
+          timeout=10)
 
   def test_ok(self):
     response = self.server.get('/ok')

@@ -169,7 +169,8 @@ def alert(subject, text):
         'to': ', '.join(args.alert_emails),
         'subject': '[ALERT] %s' % subject,
         'text': text,
-      })
+      },
+      timeout=10)
 
 
 def reset():

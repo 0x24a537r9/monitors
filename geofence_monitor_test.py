@@ -174,6 +174,29 @@ class GeofenceMonitorTest(unittest.TestCase):
     self.assertEqual(monitor.args.car_status_endpoint, 'http://test.com/carStatus/%s')
     self.assertEqual(monitor.args.query_delay_s, 0.5)
 
+  def test_polling_one_car_that_times_out(self):
+    def time_out(url, timeout=999):
+      raise requests.exceptions.Timeout('Request timed out')
+
+    with mock.patch('monitor.alert') as mock_alert:
+      with mock.patch('requests.get', side_effect=time_out) as mock_get:
+        geofence_monitor.start([
+          '-2',
+          '--car_status_endpoint=http://test.com/carStatus/%s',
+          '--max_query_qps=2.0',
+          '--poll_period_s=10',
+          '--min_poll_padding_period_s=0',
+        ])
+
+        monitor.poll_timer.mock_tick(1.0)
+        mock_get.assert_called_once_with('http://test.com/carStatus/-2', timeout=10)
+
+      mock_alert.assert_called_once_with(
+          'Geofence monitor errors',
+          "Geofence monitor is experiencing the following car-specific errors:\n"
+          "\n"
+          "[(-2, 'FETCH_TIMED_OUT')]")
+
   def test_polling_one_car_with_404_response(self):
     with mock.patch('monitor.alert') as mock_alert:
       with mock.patch('requests.get', return_value=CAR_NEGATIVE_1_404_RESPONSE) as mock_get:
@@ -186,7 +209,7 @@ class GeofenceMonitorTest(unittest.TestCase):
         ])
 
         monitor.poll_timer.mock_tick(1.0)
-        mock_get.assert_called_once_with('http://test.com/carStatus/-1')
+        mock_get.assert_called_once_with('http://test.com/carStatus/-1', timeout=10)
 
       mock_alert.assert_called_once_with(
           'Geofence monitor errors',
@@ -206,7 +229,7 @@ class GeofenceMonitorTest(unittest.TestCase):
         ])
 
         monitor.poll_timer.mock_tick(1.0)
-        mock_get.assert_called_once_with('http://test.com/carStatus/0')
+        mock_get.assert_called_once_with('http://test.com/carStatus/0', timeout=10)
 
       mock_alert.assert_called_once_with(
           'Geofence monitor errors',
@@ -226,7 +249,7 @@ class GeofenceMonitorTest(unittest.TestCase):
         ])
 
         monitor.poll_timer.mock_tick(1.0)
-        mock_get.assert_called_once_with('http://test.com/carStatus/1')
+        mock_get.assert_called_once_with('http://test.com/carStatus/1', timeout=10)
         
       mock_alert.assert_not_called()
 
@@ -242,7 +265,7 @@ class GeofenceMonitorTest(unittest.TestCase):
         ])
 
         monitor.poll_timer.mock_tick(1.0)
-        mock_get.assert_called_once_with('http://test.com/carStatus/2')
+        mock_get.assert_called_once_with('http://test.com/carStatus/2', timeout=10)
 
       mock_alert.assert_not_called()
 
@@ -258,13 +281,13 @@ class GeofenceMonitorTest(unittest.TestCase):
         ])
 
         monitor.poll_timer.mock_tick(1.0)
-        mock_get.assert_called_once_with('http://test.com/carStatus/3')
+        mock_get.assert_called_once_with('http://test.com/carStatus/3', timeout=10)
 
       mock_alert.assert_called_once_with('Cars outside of geofences',
                                          'Cars [3] are outside of their geofences!')
 
   def test_polling_all_inside_geofences(self):
-    def mock_get_response(url):
+    def mock_get_response(url, timeout=999):
       return {
         '1': CAR_1_INSIDE_GEOFENCE_RESPONSE,
         '2': CAR_2_INSIDE_SECOND_GEOFENCE_RESPONSE,
@@ -282,15 +305,15 @@ class GeofenceMonitorTest(unittest.TestCase):
 
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_has_calls([
-          mock.call('http://test.com/carStatus/1'),
-          mock.call('http://test.com/carStatus/2'),
+          mock.call('http://test.com/carStatus/1', timeout=10),
+          mock.call('http://test.com/carStatus/2', timeout=10),
         ])
         self.assertEqual(mock_get.call_count, 2)
       
       mock_alert.assert_not_called()
 
   def test_polling_some_inside_some_outside_their_geofences(self):
-    def mock_get_response(url):
+    def mock_get_response(url, timeout=999):
       return {
         '1': CAR_1_INSIDE_GEOFENCE_RESPONSE,
         '2': CAR_2_INSIDE_SECOND_GEOFENCE_RESPONSE,
@@ -309,9 +332,9 @@ class GeofenceMonitorTest(unittest.TestCase):
 
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_has_calls([
-          mock.call('http://test.com/carStatus/1'),
-          mock.call('http://test.com/carStatus/2'),
-          mock.call('http://test.com/carStatus/3'),
+          mock.call('http://test.com/carStatus/1', timeout=10),
+          mock.call('http://test.com/carStatus/2', timeout=10),
+          mock.call('http://test.com/carStatus/3', timeout=10),
         ])
         self.assertEqual(mock_get.call_count, 3)
       
@@ -319,7 +342,10 @@ class GeofenceMonitorTest(unittest.TestCase):
                                          'Cars [3] are outside of their geofences!')
 
   def test_polling_triggering_both_alerts(self):
-    def mock_get_response(url):
+    def mock_get_response(url, timeout=999):
+      if url[-2:] == '-2':
+        raise requests.exceptions.Timeout('Request timed out')
+
       return {
         '-1': CAR_NEGATIVE_1_404_RESPONSE,
         '0': CAR_0_NO_COORDINATES_RESPONSE,
@@ -331,7 +357,7 @@ class GeofenceMonitorTest(unittest.TestCase):
     with mock.patch('monitor.alert') as mock_alert:
       with mock.patch('requests.get', side_effect=mock_get_response) as mock_get:
         geofence_monitor.start([
-          '-1', '0-3',
+          '-2', '-1', '0-3',
           '--car_status_endpoint=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
@@ -340,24 +366,25 @@ class GeofenceMonitorTest(unittest.TestCase):
 
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_has_calls([
-          mock.call('http://test.com/carStatus/-1'),
-          mock.call('http://test.com/carStatus/0'),
-          mock.call('http://test.com/carStatus/1'),
-          mock.call('http://test.com/carStatus/2'),
-          mock.call('http://test.com/carStatus/3'),
+          mock.call('http://test.com/carStatus/-2', timeout=10),
+          mock.call('http://test.com/carStatus/-1', timeout=10),
+          mock.call('http://test.com/carStatus/0', timeout=10),
+          mock.call('http://test.com/carStatus/1', timeout=10),
+          mock.call('http://test.com/carStatus/2', timeout=10),
+          mock.call('http://test.com/carStatus/3', timeout=10),
         ])
-        self.assertEqual(mock_get.call_count, 5)
+        self.assertEqual(mock_get.call_count, 6)
       
       mock_alert.assert_has_calls([
         mock.call('Cars outside of geofences', 'Cars [3] are outside of their geofences!'),
         mock.call('Geofence monitor errors',
           "Geofence monitor is experiencing the following car-specific errors:\n"
           "\n"
-          "[(-1, 'INVALID_FETCH_RESPONSE'), (0, 'NO_CAR_COORDS')]"),
+          "[(-2, 'FETCH_TIMED_OUT'), (-1, 'INVALID_FETCH_RESPONSE'), (0, 'NO_CAR_COORDS')]"),
       ], any_order=True)
 
   def test_polling_with_duplicate_car_ids(self):
-    def mock_get_response(url):
+    def mock_get_response(url, timeout=999):
       return {
         '1': CAR_1_INSIDE_GEOFENCE_RESPONSE,
         '2': CAR_2_INSIDE_SECOND_GEOFENCE_RESPONSE,
@@ -375,8 +402,8 @@ class GeofenceMonitorTest(unittest.TestCase):
 
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_has_calls([
-          mock.call('http://test.com/carStatus/1'),
-          mock.call('http://test.com/carStatus/2'),
+          mock.call('http://test.com/carStatus/1', timeout=10),
+          mock.call('http://test.com/carStatus/2', timeout=10),
         ])
         # Assert that it's only making two requests.
         self.assertEqual(mock_get.call_count, 2)
@@ -386,7 +413,7 @@ class GeofenceMonitorTest(unittest.TestCase):
   def test_polling_request_throttling(self):
     request_times = []
       
-    def mock_get_response(url):
+    def mock_get_response(url, timeout=999):
       request_times.append(time.time())
       time.sleep(0.1)
       return {
@@ -405,8 +432,8 @@ class GeofenceMonitorTest(unittest.TestCase):
 
       monitor.poll_timer.mock_tick(1.0)
       mock_get.assert_has_calls([
-        mock.call('http://test.com/carStatus/1'),
-        mock.call('http://test.com/carStatus/2'),
+        mock.call('http://test.com/carStatus/1', timeout=10),
+        mock.call('http://test.com/carStatus/2', timeout=10),
       ])
       self.assertEqual(mock_get.call_count, 2)
 

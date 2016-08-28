@@ -4,14 +4,15 @@ import logging
 import monitor
 import re
 import requests
+import requests.exceptions
 import shapely.geometry
 import sys
 import time
 
 
-server = monitor.server
-logger = logging.getLogger('monitor.geofence_monitor')
+server, logger = monitor.server, logging.getLogger('monitor.geofence_monitor')
 
+FETCH_TIMED_OUT = 'FETCH_TIMED_OUT'
 INVALID_FETCH_RESPONSE = 'INVALID_FETCH_RESPONSE'
 NO_CAR_COORDS = 'NO_CAR_COORDS'
 
@@ -62,7 +63,13 @@ def poll():
 
     # Fetch the car's status.
     logger.debug('Fetching status for car %s.' % car_id)
-    response = requests.get(monitor.args.car_status_endpoint % car_id)
+    try:
+      response = requests.get(monitor.args.car_status_endpoint % car_id, timeout=10)
+    except requests.exceptions.Timeout:
+      logger.error('Request for car %s timed out after 10s.', car_id)
+      car_id_errors.append((car_id, FETCH_TIMED_OUT))
+      continue
+
     if response.status_code != 200:
       logger.error('Received %s HTTP code for car %s with response: %s',
                    response.status_code, car_id, response.text)
