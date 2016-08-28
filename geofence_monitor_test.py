@@ -1,6 +1,4 @@
-import flask
 import geofence_monitor
-import logging
 import mock
 import mocks
 import monitor

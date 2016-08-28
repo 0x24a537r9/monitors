@@ -1,24 +1,20 @@
 import flask
-import itertools
 import logging
 import monitor
-import re
 import requests
 import requests.exceptions
-import shapely.geometry
 import sys
-import time
 
 
 server, logger = monitor.server, logging.getLogger('monitor.ok_monitor')
 
 
 def start(raw_args=sys.argv[1:]):
-  monitor.callbacks.append(poll)
   monitor.start(
       'Ok monitor',
       "Monitors another monitor's /ok endpoint, triggering an email alert if for any reason it "
       "can't be reached.",
+      raw_poll_fns=poll,
       raw_arg_defs=[{
         'name': 'server_url',
         'help': 'The URL of the server to be monitored',

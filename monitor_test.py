@@ -1,8 +1,8 @@
-import flask
 import logging
 import mock
 import mocks
 import monitor
+import time
 import unittest
 
 
@@ -19,8 +19,7 @@ class MonitorTest(unittest.TestCase):
     monitor.reset()
 
   def test_parse_args_defaults(self):
-    monitor.callbacks.append(lambda: None)
-    monitor.start('Test monitor', 'Test description', [], [])
+    monitor.start('Test monitor', 'Test description', lambda: None, [], [])
 
     self.assertEqual(monitor.args.alert_emails, ['Cameron Behar <0x24a537r9@gmail.com>'])
     self.assertEqual(monitor.args.monitor_email,
@@ -36,8 +35,7 @@ class MonitorTest(unittest.TestCase):
     self.assertEqual(monitor.args.log_level, logging.INFO)
 
   def test_parse_args_with_complex_args(self):
-    monitor.callbacks.append(lambda: None)
-    monitor.start('Test monitor', 'Test description', [], [
+    monitor.start('Test monitor', 'Test description', lambda: None, [], [
       '--alert_emails=test1@test.com,test2@test.com',
       '--monitor_email=other_monitor@test.com',
       '--poll_period_s=10',
@@ -60,8 +58,7 @@ class MonitorTest(unittest.TestCase):
     self.assertEqual(monitor.args.log_level, logging.DEBUG)
 
   def test_parse_args_with_additional_arg_defs(self):
-    monitor.callbacks.append(lambda: None)
-    monitor.start('Test monitor', 'Test description', [{
+    monitor.start('Test monitor', 'Test description', lambda: None, [{
       'name': '--arg_a',
       'dest': 'arg_a',
       'default': 'default-a',
@@ -86,19 +83,18 @@ class MonitorTest(unittest.TestCase):
     self.assertEqual(monitor.args.renamed_arg_b, 1.618)
     self.assertEqual(monitor.args.arg_c, 'default')
 
-  def test_polling_with_no_callbacks(self):
-    monitor.start('Test monitor', 'Test description', [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+  def test_polling_with_no_poll_fns(self):
+    monitor.start('Test monitor', 'Test description', raw_arg_defs=[],
+                  raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     monitor.poll_timer.mock_tick(0.5)
 
     with self.assertRaises(NotImplementedError):
       monitor.poll_timer.mock_tick(0.5)
 
-  def test_polling_with_one_callback(self):
+  def test_polling_with_one_poll_fn(self):
     poll = mock.Mock()
-    monitor.callbacks.append(poll)
-    monitor.start('Test monitor', 'Test description', [],
+    monitor.start('Test monitor', 'Test description', poll, [],
                   ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     poll.assert_not_called()
@@ -116,12 +112,9 @@ class MonitorTest(unittest.TestCase):
       monitor.poll_timer.mock_tick(1)
       poll.assert_called_once()
 
-  def test_polling_with_multiple_callbacks(self):
-    poll_0 = mock.Mock()
-    poll_1 = mock.Mock()
-    monitor.callbacks.append(poll_0)
-    monitor.callbacks.append(poll_1)
-    monitor.start('Test monitor', 'Test description', [],
+  def test_polling_with_multiple_poll_fns(self):
+    poll_0, poll_1 = mock.Mock(), mock.Mock()
+    monitor.start('Test monitor', 'Test description', [poll_0, poll_1], [],
                   ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     poll_0.assert_not_called()
@@ -150,10 +143,9 @@ class MonitorTest(unittest.TestCase):
     with mock.patch('time.time', new=mock_time.time):
       def slow_operation():
         mock_time.mock_tick(15)
-      monitor.callbacks.append(slow_operation)
     
       with mock.patch('requests.post') as mock_post:
-        monitor.start('Test monitor', 'Test description', [], [
+        monitor.start('Test monitor', 'Test description', slow_operation, [], [
           '--alert_emails=test1@test.com,test2@test.com',
           '--monitor_email=other_monitor@test.com',
           '--poll_period_s=10',
@@ -182,10 +174,9 @@ class MonitorTest(unittest.TestCase):
     with mock.patch('time.time', new=mock_time.time):
       def slow_operation():
         mock_time.mock_tick(8)
-      monitor.callbacks.append(slow_operation)
 
       with mock.patch('requests.post') as mock_post:
-        monitor.start('Test monitor', 'Test description', [], [
+        monitor.start('Test monitor', 'Test description', slow_operation, [], [
           '--alert_emails=test1@test.com,test2@test.com',
           '--monitor_email=other_monitor@test.com',
           '--poll_period_s=10',
@@ -211,7 +202,7 @@ class MonitorTest(unittest.TestCase):
 
   def test_alert(self):
     with mock.patch('requests.post') as mock_post:
-      monitor.start('Test monitor', 'Test description', [], [
+      monitor.start('Test monitor', 'Test description', lambda: None, [], [
         '--alert_emails=test1@test.com,test2@test.com',
         '--monitor_email=other_monitor@test.com',
         '--mailgun_messages_endpoint=http://test.com/send_email',
@@ -237,8 +228,7 @@ class MonitorTest(unittest.TestCase):
 
   def test_silence_default(self):
     poll = mock.Mock()
-    monitor.callbacks.append(poll)
-    monitor.start('Test monitor', 'Test description', [],
+    monitor.start('Test monitor', 'Test description', poll, [],
                   ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     monitor.poll_timer.mock_tick(1)
@@ -263,8 +253,7 @@ class MonitorTest(unittest.TestCase):
 
   def test_silence_with_complex_duration(self):
     poll = mock.Mock()
-    monitor.callbacks.append(poll)
-    monitor.start('Test monitor', 'Test description', [],
+    monitor.start('Test monitor', 'Test description', poll, [],
                   ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     monitor.poll_timer.mock_tick(1)
@@ -289,8 +278,7 @@ class MonitorTest(unittest.TestCase):
 
   def test_silence_while_already_silenced_resets_timer(self):
     poll = mock.Mock()
-    monitor.callbacks.append(poll)
-    monitor.start('Test monitor', 'Test description', [],
+    monitor.start('Test monitor', 'Test description', poll, [],
                   ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     monitor.poll_timer.mock_tick(1)
@@ -322,8 +310,7 @@ class MonitorTest(unittest.TestCase):
 
   def test_unsilence_when_silenced(self):
     poll = mock.Mock()
-    monitor.callbacks.append(poll)
-    monitor.start('Test monitor', 'Test description', [],
+    monitor.start('Test monitor', 'Test description', poll, [],
                   ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     monitor.poll_timer.mock_tick(1)
@@ -352,8 +339,7 @@ class MonitorTest(unittest.TestCase):
 
   def test_unsilence_when_already_unsilenced(self):
     poll = mock.Mock()
-    monitor.callbacks.append(poll)
-    monitor.start('Test monitor', 'Test description', [],
+    monitor.start('Test monitor', 'Test description', poll, [],
                   ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
 
     monitor.poll_timer.mock_tick(1)

@@ -18,10 +18,10 @@ NO_CAR_COORDS = 'NO_CAR_COORDS'
 
 
 def start(raw_args=sys.argv[1:]):
-  monitor.callbacks.append(poll)
   monitor.start(
       'Geofence monitor',
       'Monitors cars, triggering an email alert if any leave their prescribed geofences.',
+      raw_poll_fns=poll,
       raw_arg_defs=[{
         'name': 'car_ids',
         'type': parse_ids,

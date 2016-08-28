@@ -1,13 +1,9 @@
-import flask
 import ok_monitor
-import logging
 import mock
 import mocks
 import monitor
-import re
 import requests
 import StringIO
-import time
 import unittest
 
 

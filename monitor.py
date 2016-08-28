@@ -1,4 +1,5 @@
 import argparse
+import collections
 import datetime
 import flask
 import logging
@@ -9,7 +10,7 @@ import sys
 import threading
 import time
 
-name, args, server, callbacks, poll_timer, silence_timer, is_alive = (
+name, args, server, poll_fns, poll_timer, silence_timer, is_alive = (
     '', None, None, [], None, None, False)
 
 server = flask.Flask(__name__)
@@ -17,13 +18,15 @@ server.config.from_envvar('FLASKR_SETTINGS', silent=True)
 logger = logging.getLogger('monitor')
 
 
-def start(raw_name, raw_description, raw_arg_defs=[], raw_args=sys.argv[1:]):
-  global name, args, server, poll_timer, is_alive
+def start(raw_name, raw_description, raw_poll_fns=None, raw_arg_defs=[], raw_args=sys.argv[1:]):
+  global name, args, server, poll_fns, poll_timer, is_alive
   name = raw_name
   args = parse_args(raw_description, raw_arg_defs, raw_args)
 
   is_alive = True
   set_up_logging()
+  if raw_poll_fns:
+    poll_fns += raw_poll_fns if isinstance(raw_poll_fns, collections.Iterable) else [raw_poll_fns]
   # Delay so that the Flask server is up before polling begins.
   poll_timer = threading.Timer(1, poll)
   poll_timer.start()
@@ -130,10 +133,10 @@ def poll():
   logger.info('Polling...')
   start_time = time.time()
 
-  if not callbacks:
-    logger.critical('No polling callbacks implemented.')
-    raise NotImplementedError('No polling callbacks implemented.')
-  for callback in callbacks:
+  if not poll_fns:
+    logger.critical('No polling poll_fns implemented.')
+    raise NotImplementedError('No polling poll_fns implemented.')
+  for callback in poll_fns:
     callback()
 
   if is_alive:
@@ -174,12 +177,12 @@ def alert(subject, text):
 
 
 def reset():
-  global name, args, callbacks, poll_timer, silence_timer, is_alive
+  global name, args, poll_fns, poll_timer, silence_timer, is_alive
   if poll_timer:
     poll_timer.cancel()
   if silence_timer:
     silence_timer.cancel()
-  name, args, callbacks, poll_timer, silence_timer, is_alive = (
+  name, args, poll_fns, poll_timer, silence_timer, is_alive = (
       '', None, [], None, None, False)
 
 
