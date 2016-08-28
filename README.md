@@ -26,7 +26,7 @@ Remember to use the [http://localhost:5000/kill](http://localhost:5000/kill) to 
 
 Since monitors only provide security when they're running, I've also implemented a second 'meta-monitor' designed to run on a different machine to monitor the health of other monitors. `ok_monitor.py` simply polls a specified monitor's `/ok` path periodically to make sure it is up. To test it against a concurrently running geofence monitor on port 5000, you can run:
 
-    python ok_monitor.py --monitor_ok_endpoint='http://localhost:5000' --port=5001  --poll_period_s=10 --min_poll_padding_period_s=0 
+    python ok_monitor.py http://localhost:5000 --port=5001  --poll_period_s=10 --min_poll_padding_period_s=0 
 
 ## Explanation
 I know this repo is significantly overengineered for the task of an interview question, but it was a fun exercise, and I've needed this kind of monitoring framework for my own projects anyway, so it was a good chance to kill two birds with one stone. That said, if you'd like to see what I would've created with less time available to me, check out the code at some of my [earlier commits](https://github.com/x2y/skurt/blob/8129c30419d83f67cf64426a2bf6f8511ba4eb9f/geofence_monitor.py).
