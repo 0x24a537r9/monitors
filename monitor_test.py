@@ -6,6 +6,7 @@ import monitor
 import unittest
 
 
+
 class MonitorTest(unittest.TestCase):
   def setUp(self):
     monitor.server.config['TESTING'] = True
@@ -203,7 +204,7 @@ class MonitorTest(unittest.TestCase):
               'text': 'Test monitor is in danger of being unable to poll as frequently as expected '
                       'because the polling method is taking only 2.0s less than the polling period '
                       '(10.0s). Either optimize the polling method to run more quickly or '
-                      'configure the monitor with a longer polling period.',
+                      'configure the monitor with a longer polling period.'
             })
 
   def test_alert(self):

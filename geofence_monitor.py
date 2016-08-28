@@ -1,4 +1,5 @@
 import flask
+import itertools
 import logging
 import monitor
 import re
@@ -55,7 +56,7 @@ def poll():
   car_id_errors = []
 
   # Flatten the car_ids args into a single sorted list of unique IDs.
-  car_ids = sorted(reduce(lambda acc, ids: acc | set(ids), monitor.args.car_ids, set()))
+  car_ids = sorted(set(itertools.chain.from_iterable(monitor.args.car_ids)))
   for car_id in car_ids:
     start_time = time.time()
 
