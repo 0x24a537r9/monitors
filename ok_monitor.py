@@ -10,11 +10,10 @@ server, logger = monitor.server, logging.getLogger('monitor.ok_monitor')
 
 
 def start(raw_args=sys.argv[1:]):
-  monitor.start(
+  monitor.parse_args(
       'Ok monitor',
       "Monitors another monitor's /ok endpoint, triggering an email alert if for any reason it "
       "can't be reached.",
-      raw_poll_fns=poll,
       raw_arg_defs=[{
         'name': 'server_url',
         'help': 'The URL of the server to be monitored',
@@ -26,6 +25,7 @@ def start(raw_args=sys.argv[1:]):
         'help': 'The maximum period (in seconds) before timing out an /ok request',
       }],
       raw_args=raw_args)
+  monitor.start(poll)
 
 
 def poll():

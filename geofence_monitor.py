@@ -18,10 +18,9 @@ NO_CAR_COORDS = 'NO_CAR_COORDS'
 
 
 def start(raw_args=sys.argv[1:]):
-  monitor.start(
+  monitor.parse_args(
       'Geofence monitor',
       'Monitors cars, triggering an email alert if any leave their prescribed geofences.',
-      raw_poll_fns=poll,
       raw_arg_defs=[{
         'name': 'car_ids',
         'type': parse_ids,
@@ -41,6 +40,10 @@ def start(raw_args=sys.argv[1:]):
         'help': 'The maximum QPS with which to query the server for individual car statuses',
       }],
       raw_args=raw_args)
+  # Flatten the car_ids args into a single sorted list of unique IDs.
+  monitor.args.car_ids = sorted(set(itertools.chain.from_iterable(monitor.args.car_ids)))
+  
+  monitor.start(poll)
 
 
 def parse_ids(arg):
@@ -56,9 +59,7 @@ def poll():
   car_ids_out_of_bounds = []
   car_id_errors = []
 
-  # Flatten the car_ids args into a single sorted list of unique IDs.
-  car_ids = sorted(set(itertools.chain.from_iterable(monitor.args.car_ids)))
-  for car_id in car_ids:
+  for car_id in monitor.args.car_ids:
     start_time = time.time()
 
     # Fetch the car's status.

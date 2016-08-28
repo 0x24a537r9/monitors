@@ -155,7 +155,7 @@ class GeofenceMonitorTest(unittest.TestCase):
   def test_parse_args_defaults(self):
     geofence_monitor.start(['1'])
 
-    self.assertEqual(monitor.args.car_ids, [[1]])
+    self.assertEqual(monitor.args.car_ids, [1])
     self.assertEqual(monitor.args.car_status_url,
                      'http://skurt-interview-api.herokuapp.com/carStatus/%s')
     self.assertEqual(monitor.args.query_delay_s, 1.0)
@@ -167,8 +167,18 @@ class GeofenceMonitorTest(unittest.TestCase):
       '--max_query_qps=2.0',
     ])
 
-    self.assertEqual(monitor.args.car_ids,
-                     [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], [13], [15, 16]])
+    self.assertEqual(monitor.args.car_ids, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 16])
+    self.assertEqual(monitor.args.car_status_url, 'http://test.com/carStatus/%s')
+    self.assertEqual(monitor.args.query_delay_s, 0.5)
+
+  def test_parse_args_with_overlapping_car_id_ranges(self):
+    geofence_monitor.start([
+      '5-10', '1-7', '3',
+      '--car_status_url=http://test.com/carStatus/%s',
+      '--max_query_qps=2.0',
+    ])
+
+    self.assertEqual(monitor.args.car_ids, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     self.assertEqual(monitor.args.car_status_url, 'http://test.com/carStatus/%s')
     self.assertEqual(monitor.args.query_delay_s, 0.5)
 

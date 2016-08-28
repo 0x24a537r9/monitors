@@ -19,7 +19,7 @@ class MonitorTest(unittest.TestCase):
     monitor.reset()
 
   def test_parse_args_defaults(self):
-    monitor.start('Test monitor', 'Test description', lambda: None, [], [])
+    monitor.parse_args('Test monitor', 'Test description', [], [])
 
     self.assertEqual(monitor.args.alert_emails, ['Cameron Behar <0x24a537r9@gmail.com>'])
     self.assertEqual(monitor.args.monitor_email,
@@ -35,7 +35,7 @@ class MonitorTest(unittest.TestCase):
     self.assertEqual(monitor.args.log_level, logging.INFO)
 
   def test_parse_args_with_complex_args(self):
-    monitor.start('Test monitor', 'Test description', lambda: None, [], [
+    monitor.parse_args('Test monitor', 'Test description', [], [
       '--alert_emails=test1@test.com,test2@test.com',
       '--monitor_email=other_monitor@test.com',
       '--poll_period_s=10',
@@ -58,7 +58,7 @@ class MonitorTest(unittest.TestCase):
     self.assertEqual(monitor.args.log_level, logging.DEBUG)
 
   def test_parse_args_with_additional_arg_defs(self):
-    monitor.start('Test monitor', 'Test description', lambda: None, [{
+    monitor.parse_args('Test monitor', 'Test description', [{
       'name': '--arg_a',
       'dest': 'arg_a',
       'default': 'default-a',
@@ -84,8 +84,9 @@ class MonitorTest(unittest.TestCase):
     self.assertEqual(monitor.args.arg_c, 'default')
 
   def test_polling_with_no_poll_fns(self):
-    monitor.start('Test monitor', 'Test description', raw_arg_defs=[],
-                  raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.start()
 
     monitor.poll_timer.mock_tick(0.5)
 
@@ -94,8 +95,9 @@ class MonitorTest(unittest.TestCase):
 
   def test_polling_with_one_poll_fn(self):
     poll = mock.Mock()
-    monitor.start('Test monitor', 'Test description', poll, [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.start(poll)
 
     poll.assert_not_called()
     monitor.poll_timer.mock_tick(0.5)
@@ -114,8 +116,9 @@ class MonitorTest(unittest.TestCase):
 
   def test_polling_with_multiple_poll_fns(self):
     poll_0, poll_1 = mock.Mock(), mock.Mock()
-    monitor.start('Test monitor', 'Test description', [poll_0, poll_1], [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.start([poll_0, poll_1])
 
     poll_0.assert_not_called()
     poll_1.assert_not_called()
@@ -145,7 +148,7 @@ class MonitorTest(unittest.TestCase):
         mock_time.mock_tick(15)
     
       with mock.patch('requests.post') as mock_post:
-        monitor.start('Test monitor', 'Test description', slow_operation, [], [
+        monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
           '--alert_emails=test1@test.com,test2@test.com',
           '--monitor_email=other_monitor@test.com',
           '--poll_period_s=10',
@@ -153,6 +156,7 @@ class MonitorTest(unittest.TestCase):
           '--mailgun_messages_url=http://test.com/send_email',
           '--mailgun_api_key=1234567890',
         ])
+        monitor.start(slow_operation)
 
         monitor.poll_timer.mock_tick(1)
         mock_post.assert_called_once_with(
@@ -176,7 +180,7 @@ class MonitorTest(unittest.TestCase):
         mock_time.mock_tick(8)
 
       with mock.patch('requests.post') as mock_post:
-        monitor.start('Test monitor', 'Test description', slow_operation, [], [
+        monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
           '--alert_emails=test1@test.com,test2@test.com',
           '--monitor_email=other_monitor@test.com',
           '--poll_period_s=10',
@@ -184,6 +188,7 @@ class MonitorTest(unittest.TestCase):
           '--mailgun_messages_url=http://test.com/send_email',
           '--mailgun_api_key=1234567890',
         ])
+        monitor.start(slow_operation)
 
         monitor.poll_timer.mock_tick(1)
         mock_post.assert_called_once_with(
@@ -202,12 +207,13 @@ class MonitorTest(unittest.TestCase):
 
   def test_alert(self):
     with mock.patch('requests.post') as mock_post:
-      monitor.start('Test monitor', 'Test description', lambda: None, [], [
+      monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
         '--alert_emails=test1@test.com,test2@test.com',
         '--monitor_email=other_monitor@test.com',
         '--mailgun_messages_url=http://test.com/send_email',
         '--mailgun_api_key=1234567890',
       ])
+      monitor.start(lambda: None)
 
       monitor.alert('Test subject', 'Test message')
 
@@ -228,8 +234,9 @@ class MonitorTest(unittest.TestCase):
 
   def test_silence_default(self):
     poll = mock.Mock()
-    monitor.start('Test monitor', 'Test description', poll, [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.start(poll)
 
     monitor.poll_timer.mock_tick(1)
     poll.assert_called_once()
@@ -253,8 +260,9 @@ class MonitorTest(unittest.TestCase):
 
   def test_silence_with_complex_duration(self):
     poll = mock.Mock()
-    monitor.start('Test monitor', 'Test description', poll, [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.start(poll)
 
     monitor.poll_timer.mock_tick(1)
     poll.assert_called_once()
@@ -278,8 +286,9 @@ class MonitorTest(unittest.TestCase):
 
   def test_silence_while_already_silenced_resets_timer(self):
     poll = mock.Mock()
-    monitor.start('Test monitor', 'Test description', poll, [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.start(poll)
 
     monitor.poll_timer.mock_tick(1)
     poll.assert_called_once()
@@ -310,8 +319,9 @@ class MonitorTest(unittest.TestCase):
 
   def test_unsilence_when_silenced(self):
     poll = mock.Mock()
-    monitor.start('Test monitor', 'Test description', poll, [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.start(poll)
 
     monitor.poll_timer.mock_tick(1)
     poll.assert_called_once()
@@ -339,8 +349,9 @@ class MonitorTest(unittest.TestCase):
 
   def test_unsilence_when_already_unsilenced(self):
     poll = mock.Mock()
-    monitor.start('Test monitor', 'Test description', poll, [],
-                  ['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.start(poll)
 
     monitor.poll_timer.mock_tick(1)
     poll.assert_called_once()

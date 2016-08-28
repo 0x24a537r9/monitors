@@ -18,55 +18,12 @@ server.config.from_envvar('FLASKR_SETTINGS', silent=True)
 logger = logging.getLogger('monitor')
 
 
-def start(raw_name, raw_description, raw_poll_fns=None, raw_arg_defs=[], raw_args=sys.argv[1:]):
-  global name, args, server, poll_fns, poll_timer, is_alive
+def parse_args(raw_name, raw_description, raw_arg_defs=[], raw_args=sys.argv[1:]):
+  global name, args
   name = raw_name
-  args = parse_args(raw_description, raw_arg_defs, raw_args)
-
-  is_alive = True
-  set_up_logging()
-  if raw_poll_fns:
-    poll_fns += raw_poll_fns if isinstance(raw_poll_fns, collections.Iterable) else [raw_poll_fns]
-  # Delay so that the Flask server is up before polling begins.
-  poll_timer = threading.Timer(1, poll)
-  poll_timer.start()
-  if not server.config.get('TESTING'):
-    server.run(port=args.port)
-
-
-def set_up_logging():
-  logger.handlers = []  # Clean up past handlers when repeatedly starting up in unit tests.
-  logger.setLevel(args.log_level)
-  formatter = logging.Formatter('%(levelname)-8s %(asctime)s [%(name)s]: %(message)s')
-
-  stdout = logging.StreamHandler(stream=sys.stdout)
-  stdout.setLevel(args.log_level)
-  stdout.setFormatter(formatter)
-  logger.addHandler(stdout)
-
-  info = logging.handlers.TimedRotatingFileHandler(
-      '%s.INFO.log' % args.log_file_prefix, when='d', interval=1, backupCount=7)
-  info.setLevel(logging.INFO)
-  info.setFormatter(formatter)
-  logger.addHandler(info)
-
-  warning = logging.handlers.TimedRotatingFileHandler(
-      '%s.WARNING.log' % args.log_file_prefix, when='d', interval=1, backupCount=7)
-  warning.setLevel(logging.WARNING)
-  warning.setFormatter(formatter)
-  logger.addHandler(warning)
-
-  error = logging.handlers.TimedRotatingFileHandler(
-      '%s.ERROR.log' % args.log_file_prefix, when='d', interval=1, backupCount=7)
-  error.setLevel(logging.ERROR)
-  error.setFormatter(formatter)
-  logger.addHandler(error)
-
-
-def parse_args(description, arg_defs, raw_args=sys.argv[1:]):
-  parser = argparse.ArgumentParser(description=description)
+  parser = argparse.ArgumentParser(description=raw_description)
   name_slug = name.lower().replace(' ', '_')
-  arg_defs += [{
+  raw_arg_defs += [{
     'name': '--alert_emails',
     'dest': 'alert_emails',
     'default': ['Cameron Behar <0x24a537r9@gmail.com>'],
@@ -121,9 +78,51 @@ def parse_args(description, arg_defs, raw_args=sys.argv[1:]):
     'choices': (logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL),
     'help': 'The logging level to use',
   }]
-  for arg_def in arg_defs:
+  for arg_def in raw_arg_defs:
     parser.add_argument(arg_def.pop('name'), **arg_def)
-  return parser.parse_args(raw_args)
+  args = parser.parse_args(raw_args)
+
+
+def start(raw_poll_fns=None):
+  global poll_fns, poll_timer, is_alive
+  is_alive = True
+  set_up_logging()
+  if raw_poll_fns:
+    poll_fns += raw_poll_fns if isinstance(raw_poll_fns, collections.Iterable) else [raw_poll_fns]
+  # Delay so that the Flask server is up before polling begins.
+  poll_timer = threading.Timer(1, poll)
+  poll_timer.start()
+  if not server.config.get('TESTING'):
+    server.run(port=args.port)
+
+
+def set_up_logging():
+  logger.handlers = []  # Clean up past handlers when repeatedly starting up in unit tests.
+  logger.setLevel(args.log_level)
+  formatter = logging.Formatter('%(levelname)-8s %(asctime)s [%(name)s]: %(message)s')
+
+  stdout = logging.StreamHandler(stream=sys.stdout)
+  stdout.setLevel(args.log_level)
+  stdout.setFormatter(formatter)
+  logger.addHandler(stdout)
+
+  info = logging.handlers.TimedRotatingFileHandler(
+      '%s.INFO.log' % args.log_file_prefix, when='d', interval=1, backupCount=7)
+  info.setLevel(logging.INFO)
+  info.setFormatter(formatter)
+  logger.addHandler(info)
+
+  warning = logging.handlers.TimedRotatingFileHandler(
+      '%s.WARNING.log' % args.log_file_prefix, when='d', interval=1, backupCount=7)
+  warning.setLevel(logging.WARNING)
+  warning.setFormatter(formatter)
+  logger.addHandler(warning)
+
+  error = logging.handlers.TimedRotatingFileHandler(
+      '%s.ERROR.log' % args.log_file_prefix, when='d', interval=1, backupCount=7)
+  error.setLevel(logging.ERROR)
+  error.setFormatter(formatter)
+  logger.addHandler(error)
 
 
 def poll():
