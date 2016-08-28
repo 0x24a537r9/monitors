@@ -26,7 +26,7 @@ class MonitorTest(unittest.TestCase):
                      'Test monitor <engineering+test_monitor@skurt.com>')
     self.assertEqual(monitor.args.poll_period_s, 300)
     self.assertEqual(monitor.args.min_poll_padding_period_s, 10)
-    self.assertEqual(monitor.args.mailgun_messages_endpoint,
+    self.assertEqual(monitor.args.mailgun_messages_url,
                      'https://api.mailgun.net/v3/sandboxf3f15ea9e4c743199c24cb3b628208c0.mailgun'
                      '.org/messages')
     self.assertEqual(monitor.args.mailgun_api_key, 'key-db805e58c7522624b6b6c7fbb96dcbb0')
@@ -40,7 +40,7 @@ class MonitorTest(unittest.TestCase):
       '--monitor_email=other_monitor@test.com',
       '--poll_period_s=10',
       '--min_poll_padding_period_s=0',
-      '--mailgun_messages_endpoint=http://test.com/send_email',
+      '--mailgun_messages_url=http://test.com/send_email',
       '--mailgun_api_key=123456789',
       '--port=8080',
       '--log_file_prefix=other_monitor',
@@ -51,7 +51,7 @@ class MonitorTest(unittest.TestCase):
     self.assertEqual(monitor.args.monitor_email, 'other_monitor@test.com')
     self.assertEqual(monitor.args.poll_period_s, 10.0)
     self.assertEqual(monitor.args.min_poll_padding_period_s, 0.0)
-    self.assertEqual(monitor.args.mailgun_messages_endpoint, 'http://test.com/send_email')
+    self.assertEqual(monitor.args.mailgun_messages_url, 'http://test.com/send_email')
     self.assertEqual(monitor.args.mailgun_api_key, '123456789')
     self.assertEqual(monitor.args.port, 8080)
     self.assertEqual(monitor.args.log_file_prefix, 'other_monitor')
@@ -150,7 +150,7 @@ class MonitorTest(unittest.TestCase):
           '--monitor_email=other_monitor@test.com',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=5',
-          '--mailgun_messages_endpoint=http://test.com/send_email',
+          '--mailgun_messages_url=http://test.com/send_email',
           '--mailgun_api_key=1234567890',
         ])
 
@@ -181,7 +181,7 @@ class MonitorTest(unittest.TestCase):
           '--monitor_email=other_monitor@test.com',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=5',
-          '--mailgun_messages_endpoint=http://test.com/send_email',
+          '--mailgun_messages_url=http://test.com/send_email',
           '--mailgun_api_key=1234567890',
         ])
 
@@ -205,7 +205,7 @@ class MonitorTest(unittest.TestCase):
       monitor.start('Test monitor', 'Test description', lambda: None, [], [
         '--alert_emails=test1@test.com,test2@test.com',
         '--monitor_email=other_monitor@test.com',
-        '--mailgun_messages_endpoint=http://test.com/send_email',
+        '--mailgun_messages_url=http://test.com/send_email',
         '--mailgun_api_key=1234567890',
       ])
 

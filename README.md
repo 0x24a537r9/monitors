@@ -9,7 +9,7 @@ In order to run `geofence_monitor.py`, you'll need to set a few things up first.
 3. Assuming you already have [pip](https://pypi.python.org/pypi/pip) and Python 2.7 installed, you can simply run `pip install -r pip-packages.txt` to download the necessary packages. If you're not familiar with [virtualenv](https://pypi.python.org/pypi/virtualenv) and [virtualenvwrapper](https://pypi.python.org/pypi/virtualenvwrapper), I highly recommend using them to isolate these packages, per [The Hitchhiker's Guide to Python](http://docs.python-guide.org/en/latest/dev/virtualenvs/).
 
 ## Use
-The geofence monitor runs as a very simple [Flask](http://flask.pocoo.org/) HTTP server that provides a number of useful endpoints in addition to the core geofence polling behavior:
+The geofence monitor runs as a very simple [Flask](http://flask.pocoo.org/) HTTP server that provides a number of useful URLs in addition to the core geofence polling behavior:
 
 | *Route*         | *Function* |
 |-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

@@ -156,20 +156,20 @@ class GeofenceMonitorTest(unittest.TestCase):
     geofence_monitor.start(['1'])
 
     self.assertEqual(monitor.args.car_ids, [[1]])
-    self.assertEqual(monitor.args.car_status_endpoint,
+    self.assertEqual(monitor.args.car_status_url,
                      'http://skurt-interview-api.herokuapp.com/carStatus/%s')
     self.assertEqual(monitor.args.query_delay_s, 1.0)
 
   def test_parse_args_with_complex_args(self):
     geofence_monitor.start([
       '1-11', '13', '15-16',
-      '--car_status_endpoint=http://test.com/carStatus/%s',
+      '--car_status_url=http://test.com/carStatus/%s',
       '--max_query_qps=2.0',
     ])
 
     self.assertEqual(monitor.args.car_ids,
                      [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], [13], [15, 16]])
-    self.assertEqual(monitor.args.car_status_endpoint, 'http://test.com/carStatus/%s')
+    self.assertEqual(monitor.args.car_status_url, 'http://test.com/carStatus/%s')
     self.assertEqual(monitor.args.query_delay_s, 0.5)
 
   def test_polling_one_car_that_times_out(self):
@@ -180,7 +180,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', side_effect=time_out) as mock_get:
         geofence_monitor.start([
           '-2',
-          '--car_status_endpoint=http://test.com/carStatus/%s',
+          '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -200,7 +200,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', return_value=CAR_NEGATIVE_1_404_RESPONSE) as mock_get:
         geofence_monitor.start([
           '-1',
-          '--car_status_endpoint=http://test.com/carStatus/%s',
+          '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -220,7 +220,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', return_value=CAR_0_NO_COORDINATES_RESPONSE) as mock_get:
         geofence_monitor.start([
           '0',
-          '--car_status_endpoint=http://test.com/carStatus/%s',
+          '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -240,7 +240,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', return_value=CAR_1_INSIDE_GEOFENCE_RESPONSE) as mock_get:
         geofence_monitor.start([
           '1',
-          '--car_status_endpoint=http://test.com/carStatus/%s',
+          '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -256,7 +256,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', return_value=CAR_2_INSIDE_SECOND_GEOFENCE_RESPONSE) as mock_get:
         geofence_monitor.start([
           '2',
-          '--car_status_endpoint=http://test.com/carStatus/%s',
+          '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -272,7 +272,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', return_value=CAR_3_OUTSIDE_ITS_GEOFENCES_RESPONSE) as mock_get:
         geofence_monitor.start([
           '3',
-          '--car_status_endpoint=http://test.com/carStatus/%s',
+          '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -295,7 +295,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', side_effect=mock_get_response) as mock_get:
         geofence_monitor.start([
           '1-2',
-          '--car_status_endpoint=http://test.com/carStatus/%s',
+          '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -322,7 +322,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', side_effect=mock_get_response) as mock_get:
         geofence_monitor.start([
           '1-3',
-          '--car_status_endpoint=http://test.com/carStatus/%s',
+          '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -356,7 +356,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', side_effect=mock_get_response) as mock_get:
         geofence_monitor.start([
           '-2', '-1', '0-3',
-          '--car_status_endpoint=http://test.com/carStatus/%s',
+          '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -392,7 +392,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', side_effect=mock_get_response) as mock_get:
         geofence_monitor.start([
           '1-2', '1', '2',
-          '--car_status_endpoint=http://test.com/carStatus/%s',
+          '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -422,7 +422,7 @@ class GeofenceMonitorTest(unittest.TestCase):
     with mock.patch('requests.get', side_effect=mock_get_response) as mock_get:
       geofence_monitor.start([
         '1-2',
-        '--car_status_endpoint=http://test.com/carStatus/%s',
+        '--car_status_url=http://test.com/carStatus/%s',
         '--max_query_qps=2.0',
         '--poll_period_s=10',
         '--min_poll_padding_period_s=0',

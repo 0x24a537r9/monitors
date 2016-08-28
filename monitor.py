@@ -92,8 +92,8 @@ def parse_args(description, arg_defs, raw_args=sys.argv[1:]):
             'next one begins. Used for alerting in case the polling method is slow and in danger '
             'of overrunning the configured --poll_period_s.',
   }, {
-    'name': '--mailgun_messages_endpoint',
-    'dest': 'mailgun_messages_endpoint',
+    'name': '--mailgun_messages_url',
+    'dest': 'mailgun_messages_url',
     'default': 'https://api.mailgun.net/v3/sandboxf3f15ea9e4c743199c24cb3b628208c0.mailgun.org/'
                'messages',
     'help': 'The URL for the Mailgun messages endpoint',
@@ -165,7 +165,7 @@ def poll():
 def alert(subject, text):
   logger.info('Sending alert: "%s"', subject)
   requests.post(
-      args.mailgun_messages_endpoint,
+      args.mailgun_messages_url,
       auth=('api', args.mailgun_api_key),
       data={
         'from': args.monitor_email,

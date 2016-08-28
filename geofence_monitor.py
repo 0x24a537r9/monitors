@@ -28,8 +28,8 @@ def start(raw_args=sys.argv[1:]):
         'nargs': '+',
         'help': 'The car IDs to monitor. IDs can be specified as single IDs or ID ranges such as "2-8"',
       }, {
-        'name': '--car_status_endpoint',
-        'dest': 'car_status_endpoint',
+        'name': '--car_status_url',
+        'dest': 'car_status_url',
         'default': 'http://skurt-interview-api.herokuapp.com/carStatus/%s',
         'help': 'The URL pattern for the car status endpoint, with "%%s" to indicate the id insertion '
                 'point',
@@ -64,7 +64,7 @@ def poll():
     # Fetch the car's status.
     logger.debug('Fetching status for car %s.' % car_id)
     try:
-      response = requests.get(monitor.args.car_status_endpoint % car_id, timeout=10)
+      response = requests.get(monitor.args.car_status_url % car_id, timeout=10)
     except requests.exceptions.Timeout:
       logger.error('Request for car %s timed out after 10s.', car_id)
       car_id_errors.append((car_id, FETCH_TIMED_OUT))
