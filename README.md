@@ -16,13 +16,13 @@ The geofence monitor runs as a very simple [Flask](http://flask.pocoo.org/) HTTP
 | `/silence`      | Silences any alerts by temporarily suspending polling. Silences 1 hour by default, configured in the path using basic time strings such as `30s`, `10m15s`, `5h`, and `1d12h`. For example, `GET`ting `/silence/1h30m` will silence the monitor for exactly 1 hour and 30 minutes. |
 | `/unsilence`    | Unsilences any alerts by immediately resuming standard polling.|
 | `/ok`           | Simply returns "ok" if the server is up. Used by `ok_monitor.py` to ensure that the monitor itself is up and running.|
-| `/killkillkill` | Kills the server and monitor.|
+| `/kill` | Kills the server and monitor.|
 
 Simply run `python geofence_monitor.py` to see its command-line options (powered by Python's `argparse` module). At minimum, it expects at least one car ID range, specified as either a single integer (e.g.  `3`) or a range (e.g. `1-11`). To test its basic functionality in an accelerated timescale, I suggest running with:
 
     python geofence_monitor.py 1 --max_query_qps=1 --poll_period_s=10 --min_poll_padding_period_s=0
 
-Remember to use the [http://localhost:5000/killkillkill](http://localhost:5000/killkillkill) to kill the server.
+Remember to use the [http://localhost:5000/kill](http://localhost:5000/kill) to kill the server.
 
 Since monitors only provide security when they're running, I've also implemented a second 'meta-monitor' designed to run on a different machine to monitor the health of other monitors. `ok_monitor.py` simply polls a specified monitor's `/ok` path periodically to make sure it is up. To test it against a concurrently running geofence monitor on port 5000, you can run:
 

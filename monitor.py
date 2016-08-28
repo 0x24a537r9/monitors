@@ -227,9 +227,9 @@ def unsilence():
   return 'Unsilenced.'
 
 
-@server.route('/killkillkill')
+@server.route('/kill')
 def kill():
-  logger.info('Received killkillkill request. Shutting down...')
+  logger.info('Received kill request. Shutting down...')
   func = flask.request.environ.get('werkzeug.server.shutdown')
   if func is None:
     flask.abort(404)

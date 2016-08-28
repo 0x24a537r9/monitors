@@ -370,7 +370,7 @@ class MonitorTest(unittest.TestCase):
     poll.assert_called_once()
 
   def test_kill_in_prod(self):
-    response = self.server.get('/killkillkill')
+    response = self.server.get('/kill')
     self.assertEquals(response.status_code, 404)
 
 
