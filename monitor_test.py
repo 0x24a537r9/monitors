@@ -2,6 +2,7 @@ import logging
 import mock
 import mocks
 import monitor
+import re
 import time
 import unittest
 
@@ -204,6 +205,49 @@ class MonitorTest(unittest.TestCase):
                       'configure the monitor with a longer polling period.'
             },
             timeout=10)
+
+  def test_polling_unhandled_exception_alert(self):
+    def unhandled_exception():
+      raise Exception('unhandled exception')
+  
+    with mock.patch('requests.post') as mock_post:
+      monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+        '--alert_emails=test1@test.com,test2@test.com',
+        '--monitor_email=other_monitor@test.com',
+        '--poll_period_s=10',
+        '--min_poll_padding_period_s=5',
+        '--mailgun_messages_url=http://test.com/send_email',
+        '--mailgun_api_key=1234567890',
+      ])
+      monitor.start(unhandled_exception)
+
+      monitor.poll_timer.mock_tick(1)
+      mock_post.assert_called_once_with(
+          'http://test.com/send_email',
+          auth=('api', '1234567890'),
+          data={
+            'from': 'other_monitor@test.com',
+            'to': 'test1@test.com, test2@test.com',
+            'subject': '[ALERT] Test monitor encountered an exception',
+            # We can't test the actual email text here because it contains traceback line numbers,
+            # which are very liable to change with modifications to this file and monitor.py.
+            'text': mock.ANY,
+          },
+          timeout=10)
+
+      filtered_text = mock_post.call_args[1]['data']['text']
+      filtered_text = re.sub(r'line\s\d+', 'line #', filtered_text)
+      filtered_text = re.sub(r'File\s"[^"]+"', 'File "/home/script.py"', filtered_text)
+      self.assertEqual(filtered_text,
+                       'Unhandled exception in Test monitor\'s poll function:\n'
+                       '\n'
+                       'Traceback (most recent call last):\n'
+                       '  File "/home/script.py", line #, in poll\n'
+                       '    poll_fn()\n'
+                       '  File "/home/script.py", line #, in unhandled_exception\n'
+                       '    raise Exception(\'unhandled exception\')\n'
+                       'Exception: unhandled exception\n')
+
 
   def test_alert(self):
     with mock.patch('requests.post') as mock_post:

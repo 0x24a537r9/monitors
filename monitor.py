@@ -9,6 +9,7 @@ import requests
 import sys
 import threading
 import time
+import traceback
 
 name, args, server, poll_fns, poll_timer, silence_timer, is_alive = (
     '', None, None, [], None, None, False)
@@ -135,8 +136,14 @@ def poll():
   if not poll_fns:
     logger.critical('No polling poll_fns implemented.')
     raise NotImplementedError('No polling poll_fns implemented.')
-  for callback in poll_fns:
-    callback()
+  for poll_fn in poll_fns:
+    try:
+      poll_fn()
+    except Exception as e:
+      msg = ''.join(traceback.format_exception(*sys.exc_info()))
+      logger.error('Unhandled exception in delegate poll function: "%s"', msg)
+      alert('%s encountered an exception' % name,
+            "Unhandled exception in %s's poll function:\n\n%s" % (name, msg))
 
   if is_alive:
     poll_delay = args.poll_period_s - (time.time() - start_time)
@@ -163,16 +170,19 @@ def poll():
 
 def alert(subject, text):
   logger.info('Sending alert: "%s"', subject)
-  requests.post(
-      args.mailgun_messages_url,
-      auth=('api', args.mailgun_api_key),
-      data={
-        'from': args.monitor_email,
-        'to': ', '.join(args.alert_emails),
-        'subject': '[ALERT] %s' % subject,
-        'text': text,
-      },
-      timeout=10)
+  try:
+    requests.post(
+        args.mailgun_messages_url,
+        auth=('api', args.mailgun_api_key),
+        data={
+          'from': args.monitor_email,
+          'to': ', '.join(args.alert_emails),
+          'subject': '[ALERT] %s' % subject,
+          'text': text,
+        },
+        timeout=10)
+  except:
+    logger.error('Failed to send alert "%s" with message: "%s"' % (subject, text))
 
 
 def reset():
