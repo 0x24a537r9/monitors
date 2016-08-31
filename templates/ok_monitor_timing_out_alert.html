@@ -1,0 +1,6 @@
+{% extends "base_alert.html" %}
+
+{% block message %}
+  {{ super() }}
+  Request for "{{ url }}" timed out after {{ ok_timeout_s }}s.
+{% endblock %}

@@ -1,0 +1,8 @@
+{% extends "base_alert.html" %}
+
+{% block message %}
+  {{ super() }}
+  {{ monitor_name }} is unable to poll as frequently as expected because the polling method is
+  taking {{ overrun_s }}s longer than the polling period ({{ poll_period_s }}s). Either optimize the
+  polling method to run more quickly or configure the monitor with a longer polling period.
+{% endblock %}

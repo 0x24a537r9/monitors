@@ -1,0 +1,29 @@
+{% extends "base_alert.html" %}
+
+{% block message %}
+  {{ super() }}
+  The following cars are experiencing errors:
+  <table>
+    <tr>
+      <th>Car ID</th>
+      <th>Error</th>
+    </tr>
+    {% for car_id, error in car_errors %}
+      <tr>
+        <td>{{ car_id }}</td>
+        <td>
+          {% if error == 'FETCH_TIMED_OUT' %}
+            {{ monitor_name }} timed out while requesting the car's status.
+          {% elif error == 'INVALID_FETCH_RESPONSE' %}
+            {{ monitor_name }} received an invalid response from while requesting the car's status.
+          {% elif error == 'NO_CAR_COORDS' %}
+            {{ monitor_name }} received a valid GeoJSON response after requesting the car's status,
+            but it did not include the car's coordinates.
+          {% else %}
+            An unknown error.
+          {% endif%}
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+{% endblock %}

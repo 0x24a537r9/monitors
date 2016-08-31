@@ -20,7 +20,7 @@ class MonitorTest(unittest.TestCase):
     monitor.reset()
 
   def test_parse_args_defaults(self):
-    monitor.parse_args('Test monitor', 'Test description', [], [])
+    monitor.parse_args('Test monitor', 'Test description', [], ['http://test.com'])
 
     self.assertEqual(monitor.args.alert_emails, ['Cameron Behar <0x24a537r9@gmail.com>'])
     self.assertEqual(monitor.args.monitor_email,
@@ -37,6 +37,7 @@ class MonitorTest(unittest.TestCase):
 
   def test_parse_args_with_complex_args(self):
     monitor.parse_args('Test monitor', 'Test description', [], [
+      'http://test.com',
       '--alert_emails=test1@test.com,test2@test.com',
       '--monitor_email=other_monitor@test.com',
       '--poll_period_s=10',
@@ -76,8 +77,9 @@ class MonitorTest(unittest.TestCase):
       'default': 'default',
       'help': 'The simple default arg.',
     }], [
+      'http://test.com',
       '--arg_a=non-default-a',
-      '--arg_b=1.618'
+      '--arg_b=1.618',
     ])
 
     self.assertEqual(monitor.args.arg_a, 'non-default-a')
@@ -85,8 +87,11 @@ class MonitorTest(unittest.TestCase):
     self.assertEqual(monitor.args.arg_c, 'default')
 
   def test_polling_with_no_poll_fns(self):
-    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
-                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+      'http://test.com',
+      '--poll_period_s=10',
+      '--min_poll_padding_period_s=5',
+    ])
     monitor.start()
 
     monitor.poll_timer.mock_tick(0.5)
@@ -96,8 +101,11 @@ class MonitorTest(unittest.TestCase):
 
   def test_polling_with_one_poll_fn(self):
     poll = mock.Mock()
-    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
-                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+      'http://test.com',
+      '--poll_period_s=10',
+      '--min_poll_padding_period_s=5',
+    ])
     monitor.start(poll)
 
     poll.assert_not_called()
@@ -117,8 +125,11 @@ class MonitorTest(unittest.TestCase):
 
   def test_polling_with_multiple_poll_fns(self):
     poll_0, poll_1 = mock.Mock(), mock.Mock()
-    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
-                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+      'http://test.com',
+      '--poll_period_s=10',
+      '--min_poll_padding_period_s=5',
+    ])
     monitor.start([poll_0, poll_1])
 
     poll_0.assert_not_called()
@@ -150,6 +161,7 @@ class MonitorTest(unittest.TestCase):
     
       with mock.patch('requests.post') as mock_post:
         monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+          'http://test.com',
           '--alert_emails=test1@test.com,test2@test.com',
           '--monitor_email=other_monitor@test.com',
           '--poll_period_s=10',
@@ -167,12 +179,12 @@ class MonitorTest(unittest.TestCase):
               'from': 'other_monitor@test.com',
               'to': 'test1@test.com, test2@test.com',
               'subject': '[ALERT] Test monitor is overrunning',
-              'text': 'Test monitor is unable to poll as frequently as expected because the '
-                      'polling method is taking 5.0s longer than the polling period (10.0s). '
-                      'Either optimize the polling method to run more quickly or configure the '
-                      'monitor with a longer polling period.',
+              'html': mock.ANY,
             },
             timeout=10)
+        filtered_html = re.sub(r'\s+', ' ', mock_post.call_args[1]['data']['html'])
+        self.assertIn('the polling method is taking 5.0s longer than the polling period',
+                      filtered_html)
 
   def test_polling_in_danger_of_overrunning_alert(self):
     mock_time = mocks.MockTime()
@@ -182,6 +194,7 @@ class MonitorTest(unittest.TestCase):
 
       with mock.patch('requests.post') as mock_post:
         monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+          'http://test.com',
           '--alert_emails=test1@test.com,test2@test.com',
           '--monitor_email=other_monitor@test.com',
           '--poll_period_s=10',
@@ -199,12 +212,12 @@ class MonitorTest(unittest.TestCase):
               'from': 'other_monitor@test.com',
               'to': 'test1@test.com, test2@test.com',
               'subject': '[ALERT] Test monitor is in danger of overrunning',
-              'text': 'Test monitor is in danger of being unable to poll as frequently as expected '
-                      'because the polling method is taking only 2.0s less than the polling period '
-                      '(10.0s). Either optimize the polling method to run more quickly or '
-                      'configure the monitor with a longer polling period.'
+              'html': mock.ANY,
             },
             timeout=10)
+        filtered_html = re.sub(r'\s+', ' ', mock_post.call_args[1]['data']['html'])
+        self.assertIn('the polling method is taking only 2.0s less than the polling period',
+                      filtered_html)
 
   def test_polling_unhandled_exception_alert(self):
     def unhandled_exception():
@@ -212,6 +225,7 @@ class MonitorTest(unittest.TestCase):
   
     with mock.patch('requests.post') as mock_post:
       monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+        'http://test.com',
         '--alert_emails=test1@test.com,test2@test.com',
         '--monitor_email=other_monitor@test.com',
         '--poll_period_s=10',
@@ -229,29 +243,31 @@ class MonitorTest(unittest.TestCase):
             'from': 'other_monitor@test.com',
             'to': 'test1@test.com, test2@test.com',
             'subject': '[ALERT] Test monitor encountered an exception',
-            # We can't test the actual email text here because it contains traceback line numbers,
-            # which are very liable to change with modifications to this file and monitor.py.
-            'text': mock.ANY,
+            'html': mock.ANY,
           },
           timeout=10)
 
-      filtered_text = mock_post.call_args[1]['data']['text']
-      filtered_text = re.sub(r'line\s\d+', 'line #', filtered_text)
-      filtered_text = re.sub(r'File\s"[^"]+"', 'File "/home/script.py"', filtered_text)
-      self.assertEqual(filtered_text,
-                       'Unhandled exception in Test monitor\'s poll function:\n'
-                       '\n'
-                       'Traceback (most recent call last):\n'
-                       '  File "/home/script.py", line #, in poll\n'
-                       '    poll_fn()\n'
-                       '  File "/home/script.py", line #, in unhandled_exception\n'
-                       '    raise Exception(\'unhandled exception\')\n'
-                       'Exception: unhandled exception\n')
+      # We can't test the actual email text here because it contains traceback line numbers, which
+      # are liable to change with modifications to this file and monitor.py. First we'll need to
+      # filter the HTML to make it more stable over time.
+      filtered_html = mock_post.call_args[1]['data']['html']
+      filtered_html = re.sub(r'\s+', ' ', filtered_html)
+      filtered_html = re.sub(r'line\s\d+', 'line #', filtered_html)
+      filtered_html = re.sub(r'File\s&#34;[^&]+&#34;', 'File &#34;/home/script.py&#34;', filtered_html)
+      self.assertIn('Unhandled exception in Test monitor\'s poll function:', filtered_html)
+      self.assertIn('Traceback (most recent call last): '
+                    'File &#34;/home/script.py&#34;, line #, in poll '
+                    'poll_fn() '
+                    'File &#34;/home/script.py&#34;, line #, in unhandled_exception '
+                    'raise Exception(&#39;unhandled exception&#39;) '
+                    'Exception: unhandled exception',
+                    filtered_html)
 
 
   def test_alert(self):
     with mock.patch('requests.post') as mock_post:
       monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+        'http://test.com',
         '--alert_emails=test1@test.com,test2@test.com',
         '--monitor_email=other_monitor@test.com',
         '--mailgun_messages_url=http://test.com/send_email',
@@ -259,7 +275,7 @@ class MonitorTest(unittest.TestCase):
       ])
       monitor.start(lambda: None)
 
-      monitor.alert('Test subject', 'Test message')
+      monitor.alert('Test subject', 'test', {'a': 'string'})
 
       mock_post.assert_called_once_with(
           'http://test.com/send_email',
@@ -268,9 +284,14 @@ class MonitorTest(unittest.TestCase):
             'from': 'other_monitor@test.com',
             'to': 'test1@test.com, test2@test.com',
             'subject': '[ALERT] Test subject',
-            'text': 'Test message',
+            'html': mock.ANY,
           },
           timeout=10)
+      filtered_html = re.sub(r'\s+', ' ', mock_post.call_args[1]['data']['html'])
+      self.assertIn('Test message with string replacement', filtered_html)
+      self.assertIn('Check on this monitor\'s status', filtered_html)
+      self.assertIn('Silence this alarm for', filtered_html)
+      self.assertIn('Unsilence this alarm', filtered_html)
 
   def test_ok(self):
     response = self.server.get('/ok')
@@ -278,8 +299,11 @@ class MonitorTest(unittest.TestCase):
 
   def test_silence_default(self):
     poll = mock.Mock()
-    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
-                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+      'http://test.com',
+      '--poll_period_s=10',
+      '--min_poll_padding_period_s=5',
+    ])
     monitor.start(poll)
 
     monitor.poll_timer.mock_tick(1)
@@ -304,8 +328,11 @@ class MonitorTest(unittest.TestCase):
 
   def test_silence_with_complex_duration(self):
     poll = mock.Mock()
-    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
-                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+      'http://test.com',
+      '--poll_period_s=10',
+      '--min_poll_padding_period_s=5',
+    ])
     monitor.start(poll)
 
     monitor.poll_timer.mock_tick(1)
@@ -330,8 +357,11 @@ class MonitorTest(unittest.TestCase):
 
   def test_silence_while_already_silenced_resets_timer(self):
     poll = mock.Mock()
-    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
-                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+      'http://test.com',
+      '--poll_period_s=10',
+      '--min_poll_padding_period_s=5',
+    ])
     monitor.start(poll)
 
     monitor.poll_timer.mock_tick(1)
@@ -363,8 +393,11 @@ class MonitorTest(unittest.TestCase):
 
   def test_unsilence_when_silenced(self):
     poll = mock.Mock()
-    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
-                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+      'http://test.com',
+      '--poll_period_s=10',
+      '--min_poll_padding_period_s=5',
+    ])
     monitor.start(poll)
 
     monitor.poll_timer.mock_tick(1)
@@ -393,8 +426,11 @@ class MonitorTest(unittest.TestCase):
 
   def test_unsilence_when_already_unsilenced(self):
     poll = mock.Mock()
-    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
-                       raw_args=['--poll_period_s=10', '--min_poll_padding_period_s=5'])
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+      'http://test.com',
+      '--poll_period_s=10',
+      '--min_poll_padding_period_s=5',
+    ])
     monitor.start(poll)
 
     monitor.poll_timer.mock_tick(1)

@@ -34,21 +34,19 @@ def poll():
     response = requests.get(url, timeout=monitor.args.ok_timeout_s)
   except requests.exceptions.Timeout:
     logger.error('Request for "%s" timed out after %ss.', url, monitor.args.ok_timeout_s)
-    monitor.alert('%s is timing out' % monitor.args.server_url,
-                  'Request for "%s" timed out after %ss.' % (url, monitor.args.ok_timeout_s))
+    monitor.alert('%s is timing out' % monitor.args.server_url, 'ok_monitor_timing_out',
+                  {'url': url, 'ok_timeout_s': monitor.args.ok_timeout_s})
     return
   except Exception:
     logger.error('Failed to connect to "%s".', url)
-    monitor.alert('%s is unreachable' % monitor.args.server_url,
-                  '"%s" could not be reached.' % url)
+    monitor.alert('%s is unreachable' % monitor.args.server_url, 'ok_monitor_unreachable',
+                  {'url': url})
     return
 
   if response.status_code != 200 or response.text != 'ok':
-    logger.error('Received %s HTTP code with response: "%s"',
-                 response.status_code, response.text)
-    monitor.alert('%s is not ok' % monitor.args.server_url,
-                  'Received %s HTTP code from "%s" with unexpected response: "%s"' %
-                  (response.status_code, url, response.text))
+    logger.error('Received %s HTTP code with response: "%s"', response.status_code, response.text)
+    monitor.alert('%s is not ok' % monitor.args.server_url, 'ok_monitor_not_ok',
+                  {'status_code': response.status_code, 'url': url, 'text': response.text})
     return
 
 

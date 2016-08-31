@@ -1,0 +1,6 @@
+{% extends "base_alert.html" %}
+
+{% block message %}
+  {{ super() }}
+  "{{ url }}" could not be reached.
+{% endblock %}

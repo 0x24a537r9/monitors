@@ -12,10 +12,6 @@ import time
 
 server, logger = monitor.server, logging.getLogger('monitor.geofence_monitor')
 
-FETCH_TIMED_OUT = 'FETCH_TIMED_OUT'
-INVALID_FETCH_RESPONSE = 'INVALID_FETCH_RESPONSE'
-NO_CAR_COORDS = 'NO_CAR_COORDS'
-
 
 def start(raw_args=sys.argv[1:]):
   monitor.parse_args(
@@ -38,6 +34,12 @@ def start(raw_args=sys.argv[1:]):
         'default': 1,
         'type': lambda arg: 1 / float(arg),
         'help': 'The maximum QPS with which to query the server for individual car statuses',
+      }, {
+        'name': '--google_maps_api_key',
+        'dest': 'google_maps_api_key',
+        'default': 'AIzaSyDwHlJG6aS98VZPPOyv7hm1BHPnvwURink',
+        'help': 'The API key for Google Static Maps, used to embed car location maps in geofence '
+                'alert emails',
       }],
       raw_args=raw_args)
   # Flatten the car_ids args into a single sorted list of unique IDs.
@@ -56,8 +58,8 @@ def parse_ids(arg):
 
 def poll():
   # Find the set of out-of-bounds cars.
-  car_ids_out_of_bounds = []
-  car_id_errors = []
+  out_of_bounds_car_coords = []
+  car_errors = []
 
   for car_id in monitor.args.car_ids:
     start_time = time.time()
@@ -68,13 +70,13 @@ def poll():
       response = requests.get(monitor.args.car_status_url % car_id, timeout=10)
     except requests.exceptions.Timeout:
       logger.error('Request for car %s timed out after 10s.', car_id)
-      car_id_errors.append((car_id, FETCH_TIMED_OUT))
+      car_errors.append((car_id, 'FETCH_TIMED_OUT'))
       continue
 
     if response.status_code != 200:
       logger.error('Received %s HTTP code for car %s with response: "%s"',
                    response.status_code, car_id, response.text)
-      car_id_errors.append((car_id, INVALID_FETCH_RESPONSE))
+      car_errors.append((car_id, 'INVALID_FETCH_RESPONSE'))
       continue
     geojson = response.json()
 
@@ -83,7 +85,7 @@ def poll():
                 if feature['geometry']['type'] == 'Point'), None)
     if not car:
       logger.error('No car coordinates for car %s in status response: "%s"', car_id, response.text)
-      car_id_errors.append((car_id, NO_CAR_COORDS))
+      car_errors.append((car_id, 'NO_CAR_COORDS'))
       continue
 
     # Extract all Polygon features as the car's geofences.
@@ -95,7 +97,7 @@ def poll():
     if not any(shape(geofence['geometry']).contains(shape(car['geometry']))
                for geofence in geofences):
       logger.info('Car %s was found outside of its geofences.', car['properties']['id'])
-      car_ids_out_of_bounds.append(car_id)
+      out_of_bounds_car_coords.append((car_id, car['geometry']['coordinates']))
 
     # Throttle, if necessary.
     throttle_delay = monitor.args.query_delay_s - (time.time() - start_time)
@@ -104,15 +106,16 @@ def poll():
       time.sleep(throttle_delay)
 
   # Alert by email if necessary.
-  if car_ids_out_of_bounds:
-    monitor.alert('Cars outside of geofences',
-                  'Cars [%s] are outside of their geofences!' %
-                  ', '.join(str(car_id) for car_id in car_ids_out_of_bounds))
+  if out_of_bounds_car_coords:
+    monitor.alert('Cars outside of geofences', 'geofence_monitor_geofence',
+                  {
+                    'car_coords': out_of_bounds_car_coords,
+                    'google_maps_api_key': monitor.args.google_maps_api_key,
+                  })
 
-  if car_id_errors:
-    monitor.alert('Geofence monitor errors',
-                  'Geofence monitor is experiencing the following car-specific errors:\n\n%s' %
-                  car_id_errors)
+  if car_errors:
+    monitor.alert('Geofence monitor errors', 'geofence_monitor_errors',
+                  {'car_errors': car_errors})
 
 
 if __name__ == '__main__':

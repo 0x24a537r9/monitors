@@ -1,0 +1,9 @@
+{% extends "base_alert.html" %}
+
+{% block message %}
+  {{ super() }}
+  {{ monitor_name }} is in danger of being unable to poll as frequently as expected because the 
+  polling method is taking only {{ poll_delay_s }}s less than the polling period
+  ({{ poll_period_s }}s). Either optimize the polling method to run more quickly or configure the
+  monitor with a longer polling period.
+{% endblock %}

@@ -38,13 +38,13 @@ class OkMonitorTest(unittest.TestCase):
     self.assertEqual(e.exception.code, 2)
 
   def test_parse_args_defaults(self):
-    ok_monitor.start(['http://localhost:5000'])
+    ok_monitor.start(['http://localhost:5000', 'http://test.com',])
     
     self.assertEqual(monitor.args.server_url, 'http://localhost:5000')
     self.assertEqual(monitor.args.ok_timeout_s, 10.0)
 
   def test_parse_args_with_server_url_and_args(self):
-    ok_monitor.start(['http://localhost:5000', '--ok_timeout_s=5'])
+    ok_monitor.start(['http://localhost:5000', 'http://test.com', '--ok_timeout_s=5'])
 
     self.assertEqual(monitor.args.server_url, 'http://localhost:5000')
     self.assertEqual(monitor.args.ok_timeout_s, 5.0)
@@ -55,14 +55,15 @@ class OkMonitorTest(unittest.TestCase):
 
     with mock.patch('monitor.alert') as mock_alert:
       with mock.patch('requests.get', side_effect=time_out) as mock_get:
-        ok_monitor.start(['http://localhost:5000', '--ok_timeout_s=5'])
+        ok_monitor.start(['http://localhost:5000', 'http://test.com', '--ok_timeout_s=5'])
 
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_called_once_with('http://localhost:5000/ok', timeout=5.0)
 
       mock_alert.assert_called_once_with(
           'http://localhost:5000 is timing out',
-          'Request for "http://localhost:5000/ok" timed out after 5.0s.')
+          'ok_monitor_timing_out',
+          {'url': 'http://localhost:5000/ok', 'ok_timeout_s': 5.0})
 
   def test_polling_with_server_unreachable(self):
     def time_out(url, timeout=999):
@@ -70,45 +71,45 @@ class OkMonitorTest(unittest.TestCase):
 
     with mock.patch('monitor.alert') as mock_alert:
       with mock.patch('requests.get', side_effect=time_out) as mock_get:
-        ok_monitor.start(['http://localhost:5000', '--ok_timeout_s=5'])
+        ok_monitor.start(['http://localhost:5000', 'http://test.com', '--ok_timeout_s=5'])
 
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_called_once_with('http://localhost:5000/ok', timeout=5.0)
 
-      mock_alert.assert_called_once_with(
-          'http://localhost:5000 is unreachable',
-          '"http://localhost:5000/ok" could not be reached.')
+      mock_alert.assert_called_once_with('http://localhost:5000 is unreachable',
+                                         'ok_monitor_unreachable',
+                                         {'url': 'http://localhost:5000/ok'})
 
   def test_polling_with_server_error(self):
     with mock.patch('monitor.alert') as mock_alert:
       with mock.patch('requests.get', return_value=SERVER_ERROR_RESPONSE) as mock_get:
-        ok_monitor.start(['http://localhost:5000', '--ok_timeout_s=5'])
+        ok_monitor.start(['http://localhost:5000', 'http://test.com', '--ok_timeout_s=5'])
 
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_called_once_with('http://localhost:5000/ok', timeout=5.0)
 
       mock_alert.assert_called_once_with(
           'http://localhost:5000 is not ok',
-          'Received 500 HTTP code from "http://localhost:5000/ok" with unexpected response: '
-          '"server error"')
+          'ok_monitor_not_ok',
+          {'url': 'http://localhost:5000/ok', 'status_code': 500, 'text': u'server error'})
 
   def test_polling_with_unknown_error(self):
     with mock.patch('monitor.alert') as mock_alert:
       with mock.patch('requests.get', return_value=NOT_OK_RESPONSE) as mock_get:
-        ok_monitor.start(['http://localhost:5000', '--ok_timeout_s=5'])
+        ok_monitor.start(['http://localhost:5000', 'http://test.com', '--ok_timeout_s=5'])
 
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_called_once_with('http://localhost:5000/ok', timeout=5.0)
 
       mock_alert.assert_called_once_with(
           'http://localhost:5000 is not ok',
-          'Received 200 HTTP code from "http://localhost:5000/ok" with unexpected response: '
-          '"unknown error"')
+          'ok_monitor_not_ok',
+          {'url': 'http://localhost:5000/ok', 'status_code': 200, 'text': u'unknown error'})
 
   def test_polling_ok(self):
     with mock.patch('monitor.alert') as mock_alert:
       with mock.patch('requests.get', return_value=OK_RESPONSE) as mock_get:
-        ok_monitor.start(['http://localhost:5000', '--ok_timeout_s=5'])
+        ok_monitor.start(['http://localhost:5000', 'http://test.com', '--ok_timeout_s=5'])
 
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_called_once_with('http://localhost:5000/ok', timeout=5.0)

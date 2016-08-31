@@ -1,0 +1,9 @@
+{% extends "base_alert.html" %}
+
+{% block message %}
+  {{ super() }}
+  Unhandled exception in {{ monitor_name }}'s poll function:<br><br>
+  <pre>
+{{ traceback }}
+  </pre>
+{% endblock %}

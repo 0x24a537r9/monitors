@@ -20,13 +20,13 @@ The geofence monitor runs as a very simple [Flask](http://flask.pocoo.org/) HTTP
 
 Simply run `python geofence_monitor.py` to see its command-line options (powered by Python's `argparse` module). At minimum, it expects at least one car ID range, specified as either a single integer (e.g.  `3`) or a range (e.g. `1-11`). To test its basic functionality in an accelerated timescale, I suggest running with:
 
-    python geofence_monitor.py 1 --max_query_qps=1 --poll_period_s=10 --min_poll_padding_period_s=0
+    python geofence_monitor.py 1 http://localhost:5000 --max_query_qps=1 --poll_period_s=10 --min_poll_padding_period_s=0
 
 Remember to use the [http://localhost:5000/kill](http://localhost:5000/kill) to kill the server.
 
 Since monitors only provide security when they're running, I've also implemented a second 'meta-monitor' designed to run on a different machine to monitor the health of other monitors. `ok_monitor.py` simply polls a specified monitor's `/ok` path periodically to make sure it is up. To test it against a concurrently running geofence monitor on port 5000, you can run:
 
-    python ok_monitor.py http://localhost:5000 --port=5001  --poll_period_s=10 --min_poll_padding_period_s=0 
+    python ok_monitor.py http://localhost:5000 http://localhost:5001 --port=5001  --poll_period_s=10 --min_poll_padding_period_s=0 
 
 ## Tests
 This repo is fully unit tested. To run the native Python `unittest`-based tests, run:

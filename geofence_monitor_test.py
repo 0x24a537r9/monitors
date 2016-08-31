@@ -153,7 +153,7 @@ class GeofenceMonitorTest(unittest.TestCase):
     self.assertEqual(e.exception.code, 2)
 
   def test_parse_args_defaults(self):
-    geofence_monitor.start(['1'])
+    geofence_monitor.start(['1', 'http://test.com'])
 
     self.assertEqual(monitor.args.car_ids, [1])
     self.assertEqual(monitor.args.car_status_url,
@@ -163,6 +163,7 @@ class GeofenceMonitorTest(unittest.TestCase):
   def test_parse_args_with_complex_args(self):
     geofence_monitor.start([
       '1-11', '13', '15-16',
+      'http://test.com',
       '--car_status_url=http://test.com/carStatus/%s',
       '--max_query_qps=2.0',
     ])
@@ -174,6 +175,7 @@ class GeofenceMonitorTest(unittest.TestCase):
   def test_parse_args_with_overlapping_car_id_ranges(self):
     geofence_monitor.start([
       '5-10', '1-7', '3',
+      'http://test.com',
       '--car_status_url=http://test.com/carStatus/%s',
       '--max_query_qps=2.0',
     ])
@@ -190,6 +192,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', side_effect=time_out) as mock_get:
         geofence_monitor.start([
           '-2',
+          'http://test.com',
           '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
@@ -199,17 +202,15 @@ class GeofenceMonitorTest(unittest.TestCase):
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_called_once_with('http://test.com/carStatus/-2', timeout=10)
 
-      mock_alert.assert_called_once_with(
-          'Geofence monitor errors',
-          "Geofence monitor is experiencing the following car-specific errors:\n"
-          "\n"
-          "[(-2, 'FETCH_TIMED_OUT')]")
+      mock_alert.assert_called_once_with('Geofence monitor errors', 'geofence_monitor_errors',
+                                         {'car_errors': [(-2, 'FETCH_TIMED_OUT')]})
 
   def test_polling_one_car_with_404_response(self):
     with mock.patch('monitor.alert') as mock_alert:
       with mock.patch('requests.get', return_value=CAR_NEGATIVE_1_404_RESPONSE) as mock_get:
         geofence_monitor.start([
           '-1',
+          'http://test.com',
           '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
@@ -219,17 +220,15 @@ class GeofenceMonitorTest(unittest.TestCase):
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_called_once_with('http://test.com/carStatus/-1', timeout=10)
 
-      mock_alert.assert_called_once_with(
-          'Geofence monitor errors',
-          "Geofence monitor is experiencing the following car-specific errors:\n"
-          "\n"
-          "[(-1, 'INVALID_FETCH_RESPONSE')]")
+      mock_alert.assert_called_once_with('Geofence monitor errors', 'geofence_monitor_errors',
+                                         {'car_errors': [(-1, 'INVALID_FETCH_RESPONSE')]})
 
   def test_polling_one_car_with_no_coordinates(self):
     with mock.patch('monitor.alert') as mock_alert:
       with mock.patch('requests.get', return_value=CAR_0_NO_COORDINATES_RESPONSE) as mock_get:
         geofence_monitor.start([
           '0',
+          'http://test.com',
           '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
@@ -239,17 +238,15 @@ class GeofenceMonitorTest(unittest.TestCase):
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_called_once_with('http://test.com/carStatus/0', timeout=10)
 
-      mock_alert.assert_called_once_with(
-          'Geofence monitor errors',
-          "Geofence monitor is experiencing the following car-specific errors:\n"
-          "\n"
-          "[(0, 'NO_CAR_COORDS')]")
+      mock_alert.assert_called_once_with('Geofence monitor errors', 'geofence_monitor_errors',
+                                         {'car_errors': [(0, 'NO_CAR_COORDS')]})
 
   def test_polling_one_inside_geofence(self):
     with mock.patch('monitor.alert') as mock_alert:
       with mock.patch('requests.get', return_value=CAR_1_INSIDE_GEOFENCE_RESPONSE) as mock_get:
         geofence_monitor.start([
           '1',
+          'http://test.com',
           '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
@@ -266,6 +263,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', return_value=CAR_2_INSIDE_SECOND_GEOFENCE_RESPONSE) as mock_get:
         geofence_monitor.start([
           '2',
+          'http://test.com',
           '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
@@ -282,7 +280,9 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', return_value=CAR_3_OUTSIDE_ITS_GEOFENCES_RESPONSE) as mock_get:
         geofence_monitor.start([
           '3',
+          'http://test.com',
           '--car_status_url=http://test.com/carStatus/%s',
+          '--google_maps_api_key=1234567890',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -291,8 +291,10 @@ class GeofenceMonitorTest(unittest.TestCase):
         monitor.poll_timer.mock_tick(1.0)
         mock_get.assert_called_once_with('http://test.com/carStatus/3', timeout=10)
 
-      mock_alert.assert_called_once_with('Cars outside of geofences',
-                                         'Cars [3] are outside of their geofences!')
+      mock_alert.assert_called_once_with(
+          'Cars outside of geofences',
+          'geofence_monitor_geofence',
+          {'car_coords': [(3, [-73.98, 40.76])], 'google_maps_api_key': '1234567890'})
 
   def test_polling_all_inside_geofences(self):
     def mock_get_response(url, timeout=999):
@@ -305,6 +307,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', side_effect=mock_get_response) as mock_get:
         geofence_monitor.start([
           '1-2',
+          'http://test.com',
           '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
@@ -332,7 +335,9 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', side_effect=mock_get_response) as mock_get:
         geofence_monitor.start([
           '1-3',
+          'http://test.com',
           '--car_status_url=http://test.com/carStatus/%s',
+          '--google_maps_api_key=1234567890',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -346,8 +351,10 @@ class GeofenceMonitorTest(unittest.TestCase):
         ])
         self.assertEqual(mock_get.call_count, 3)
       
-      mock_alert.assert_called_once_with('Cars outside of geofences',
-                                         'Cars [3] are outside of their geofences!')
+      mock_alert.assert_called_once_with(
+          'Cars outside of geofences',
+          'geofence_monitor_geofence',
+          {'car_coords': [(3, [-73.98, 40.76])], 'google_maps_api_key': '1234567890'})
 
   def test_polling_triggering_both_alerts(self):
     def mock_get_response(url, timeout=999):
@@ -366,7 +373,9 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', side_effect=mock_get_response) as mock_get:
         geofence_monitor.start([
           '-2', '-1', '0-3',
+          'http://test.com',
           '--car_status_url=http://test.com/carStatus/%s',
+          '--google_maps_api_key=1234567890',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
           '--min_poll_padding_period_s=0',
@@ -384,11 +393,15 @@ class GeofenceMonitorTest(unittest.TestCase):
         self.assertEqual(mock_get.call_count, 6)
       
       mock_alert.assert_has_calls([
-        mock.call('Cars outside of geofences', 'Cars [3] are outside of their geofences!'),
-        mock.call('Geofence monitor errors',
-          "Geofence monitor is experiencing the following car-specific errors:\n"
-          "\n"
-          "[(-2, 'FETCH_TIMED_OUT'), (-1, 'INVALID_FETCH_RESPONSE'), (0, 'NO_CAR_COORDS')]"),
+        mock.call('Cars outside of geofences',
+                  'geofence_monitor_geofence',
+                  {'car_coords': [(3, [-73.98, 40.76])], 'google_maps_api_key': '1234567890'}),
+        mock.call('Geofence monitor errors', 'geofence_monitor_errors',
+                  {'car_errors': [
+                    (-2, 'FETCH_TIMED_OUT'),
+                    (-1, 'INVALID_FETCH_RESPONSE'),
+                    (0, 'NO_CAR_COORDS')
+                  ]}),
       ], any_order=True)
 
   def test_polling_with_duplicate_car_ids(self):
@@ -402,6 +415,7 @@ class GeofenceMonitorTest(unittest.TestCase):
       with mock.patch('requests.get', side_effect=mock_get_response) as mock_get:
         geofence_monitor.start([
           '1-2', '1', '2',
+          'http://test.com',
           '--car_status_url=http://test.com/carStatus/%s',
           '--max_query_qps=2.0',
           '--poll_period_s=10',
@@ -432,6 +446,7 @@ class GeofenceMonitorTest(unittest.TestCase):
     with mock.patch('requests.get', side_effect=mock_get_response) as mock_get:
       geofence_monitor.start([
         '1-2',
+        'http://test.com',
         '--car_status_url=http://test.com/carStatus/%s',
         '--max_query_qps=2.0',
         '--poll_period_s=10',

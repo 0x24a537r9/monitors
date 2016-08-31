@@ -1,0 +1,8 @@
+{% extends "base_alert.html" %}
+
+{% block message %}
+  {{ super() }}
+  Received {{ status_code }} HTTP code from "{{ url }}" with unexpected response:<br>
+  <br>
+  {{ text }}
+{% endblock %}

@@ -25,6 +25,10 @@ def parse_args(raw_name, raw_description, raw_arg_defs=[], raw_args=sys.argv[1:]
   parser = argparse.ArgumentParser(description=raw_description)
   name_slug = name.lower().replace(' ', '_')
   raw_arg_defs += [{
+    'name': 'monitor_url',
+    'help': 'The URL by which this monitor can be reached, used for convenience status/management '
+            'links in the alert emails',
+  }, {
     'name': '--alert_emails',
     'dest': 'alert_emails',
     'default': ['Cameron Behar <0x24a537r9@gmail.com>'],
@@ -140,37 +144,36 @@ def poll():
     try:
       poll_fn()
     except Exception as e:
-      msg = ''.join(traceback.format_exception(*sys.exc_info()))
-      logger.error('Unhandled exception in delegate poll function: "%s"', msg)
-      alert('%s encountered an exception' % name,
-            "Unhandled exception in %s's poll function:\n\n%s" % (name, msg))
+      traceback_str = ''.join(traceback.format_exception(*sys.exc_info()))
+      logger.error('Unhandled exception in delegate poll function: "%s"', traceback_str)
+      alert('%s encountered an exception' % name, 'monitor_exception', {'traceback': traceback_str})
 
   if is_alive:
-    poll_delay = args.poll_period_s - (time.time() - start_time)
-    if poll_delay < 0:
-      logger.error('Overran polling period by %ss.', abs(poll_delay))
-      alert('%s is overrunning' % name,
-            '%s is unable to poll as frequently as expected because the polling method is taking '
-            '%ss longer than the polling period (%ss). Either optimize the polling method to run '
-            'more quickly or configure the monitor with a longer polling period.' %
-            (name, abs(poll_delay), args.poll_period_s))
-    elif poll_delay <= args.min_poll_padding_period_s:
+    poll_delay_s = args.poll_period_s - (time.time() - start_time)
+    if poll_delay_s < 0:
+      logger.error('Overran polling period by %ss.', abs(poll_delay_s))
+      alert('%s is overrunning' % name, 'monitor_overrunning',
+            {'overrun_s': abs(poll_delay_s), 'poll_period_s': args.poll_period_s})
+    elif poll_delay_s <= args.min_poll_padding_period_s:
       logger.warning('In danger of overrunning polling period. Only %ss left until next poll.',
-                     poll_delay)
-      alert('%s is in danger of overrunning' % name,
-            '%s is in danger of being unable to poll as frequently as expected because the polling '
-            'method is taking only %ss less than the polling period (%ss). Either optimize the '
-            'polling method to run more quickly or configure the monitor with a longer polling '
-            'period.' % (name, poll_delay, args.poll_period_s))
+                     poll_delay_s)
+      alert('%s is in danger of overrunning' % name, 'monitor_in_danger_of_overrunning',
+            {'poll_delay_s': poll_delay_s, 'poll_period_s': args.poll_period_s})
 
     global poll_timer
-    poll_timer = threading.Timer(max(0, poll_delay), poll)
+    poll_timer = threading.Timer(max(0, poll_delay_s), poll)
     poll_timer.start()
 
 
-def alert(subject, text):
+def alert(subject, template, template_args={}):
   logger.info('Sending alert: "%s"', subject)
   try:
+    if template[-5:] != '.html':
+      template += '_alert.html'
+    template_args.update({
+      'monitor_name': name,
+      'monitor_url': args.monitor_url,
+    })
     requests.post(
         args.mailgun_messages_url,
         auth=('api', args.mailgun_api_key),
@@ -178,11 +181,13 @@ def alert(subject, text):
           'from': args.monitor_email,
           'to': ', '.join(args.alert_emails),
           'subject': '[ALERT] %s' % subject,
-          'text': text,
+          'html': server.jinja_env.get_template(template).render(**template_args),
         },
         timeout=10)
   except:
-    logger.error('Failed to send alert "%s" with message: "%s"' % (subject, text))
+    traceback_str = ''.join(traceback.format_exception(*sys.exc_info()))
+    logger.error('Failed to send alert "%s" with template "%s" and args: %s\n%s' %
+                 (subject, template, template_args, traceback_str))
 
 
 def reset():

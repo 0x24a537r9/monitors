@@ -1,0 +1,24 @@
+{% extends "base_alert.html" %}
+
+{% block message %}
+  {{ super() }}
+  The following cars are outside of their geofences:
+  <table>
+    <tr>
+      <th>Map</th>
+      <th>Car ID</th>
+      <th>Last coordinates</th>
+    </tr>
+    {% for car_id, coords in car_coords %}
+      <tr>
+        <td><img src="https://maps.googleapis.com/maps/api/staticmap?zoom=13&amp;size=200x200&amp;markers={{ coords[1] }},{{ coords[0] }}&amp;key={{ google_maps_api_key }}"></td>
+        <td>{{ car_id }}</td>
+        <td>
+          <a href="http://maps.google.com/maps?z=13&amp;t=m&amp;q=loc:{{ coords[1] }}+{{ coords[0] }}">
+            ({{ coords[1] }}, {{ coords[0] }})
+          </a>
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+{% endblock %}
