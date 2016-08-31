@@ -174,20 +174,68 @@ def alert(subject, template, template_args={}):
       'monitor_name': name,
       'monitor_url': args.monitor_url,
     })
-    requests.post(
-        args.mailgun_messages_url,
-        auth=('api', args.mailgun_api_key),
-        data={
-          'from': args.monitor_email,
-          'to': ', '.join(args.alert_emails),
-          'subject': '[ALERT] %s' % subject,
-          'html': server.jinja_env.get_template(template).render(**template_args),
-        },
-        timeout=10)
+    with server.app_context():
+      requests.post(
+          args.mailgun_messages_url,
+          auth=('api', args.mailgun_api_key),
+          data={
+            'from': args.monitor_email,
+            'to': ', '.join(args.alert_emails),
+            'subject': '[ALERT] %s' % subject,
+            'html': flask.render_template(template, **template_args),
+          },
+          timeout=10)
   except:
     traceback_str = ''.join(traceback.format_exception(*sys.exc_info()))
     logger.error('Failed to send alert "%s" with template "%s" and args: %s\n%s' %
                  (subject, template, template_args, traceback_str))
+
+
+def silence(duration_s):
+  global is_alive, silence_timer
+  if silence_timer:
+    silence_timer.cancel()
+
+  is_alive = False
+  silence_timer = threading.Timer(duration_s, unsilence)
+  silence_timer.start()
+  logger.info('Silenced for %ss.', duration_s)
+
+
+def unsilence():
+  global is_alive
+  if is_alive:
+    logger.info('Already unsilenced.')
+    return False
+  elif silence_timer:
+    silence_timer.cancel()
+
+  logger.info('Unsilenced.')
+  is_alive = True
+  poll()
+  return True
+
+
+def render_page(template, title, template_args={}):
+  try:
+    if template[-5:] != '.html':
+      template += '_page.html'
+    template_args.update({
+      'monitor_name': name,
+      'monitor_url': args.monitor_url,
+      'title': title,
+    })
+    return flask.render_template(template, **template_args)
+  except:
+    traceback_str = ''.join(traceback.format_exception(*sys.exc_info()))
+    logger.error('Failed to render template "%s" with args: %s\n%s' %
+                 (template, template_args, traceback_str))
+    return flask.render_template(
+        'error_page.html',
+        monitor_name=name,
+        title='Error',
+        message='Failed to render template "%s" with args: %s' % (template, template_args),
+        traceback=traceback_str)
 
 
 def reset():
@@ -201,51 +249,33 @@ def reset():
 
 
 @server.route('/ok')
-def ok():
+def handle_ok():
   return 'ok'
 
 
 @server.route('/silence')
 @server.route('/silence/<duration>')
-def silence(duration='1h'):
-  global is_alive, silence_timer
-  if silence_timer:
-    silence_timer.cancel()
-
+def handle_silence(duration='1h'):
   duration_components = re.match(
       r'^((?P<days>\d+?)d)?((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?$',
       duration)
   if not duration_components:
     logger.error('Received invalid silence duration: "%s"', duration)
-    return 'Invalid silence duration: "%s"' % duration
+    return render_page('error', 'Error', {'message': 'Invalid silence duration: "%s"' % duration})
 
-  is_alive = False
   timedelta_args = dict((when, int(interval or '0'))
                         for when, interval in duration_components.groupdict().iteritems())
-  silence_timer = threading.Timer(datetime.timedelta(**timedelta_args).total_seconds(),
-                                  unsilence)
-  silence_timer.start()
-
-  logger.info('Silenced for %s.', duration)
-  return 'Silenced for %s.' % duration
+  silence(datetime.timedelta(**timedelta_args).total_seconds())
+  return render_page('silence', 'Silence', {'duration': duration})
 
 
 @server.route('/unsilence')
-def unsilence():
-  global is_alive
-  if is_alive:
-    return 'Already unsilenced.'
-  elif silence_timer:
-    silence_timer.cancel()
-
-  logger.info('Unsilenced.')
-  is_alive = True
-  poll()
-  return 'Unsilenced.'
+def handle_unsilence():
+  return render_page('unsilence', 'Unsilence', {'silenced': unsilence()})
 
 
 @server.route('/kill')
-def kill():
+def handle_kill():
   logger.info('Received kill request. Shutting down...')
   func = flask.request.environ.get('werkzeug.server.shutdown')
   if func is None:

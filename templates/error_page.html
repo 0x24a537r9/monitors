@@ -1,0 +1,9 @@
+{% extends "base_page.html" %}
+
+{% block body %}
+  {{ super() }}
+  {{ message }}
+  {% if traceback %}
+    <pre>{{ traceback }}</pre>
+  {% endif %}
+{% endblock %}

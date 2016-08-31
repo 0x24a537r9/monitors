@@ -3,20 +3,20 @@
   <head></head>
   <body>
     <div class="message">{% block message %}{% endblock %}</div>
-    <div class="links">
+    <p class="links">
       Links:
       <ul>
         <li><a href="{{ monitor_url }}">Check on this monitor's status</a>
         {% block links %}{% endblock %}
-        <li>Silence this alarm for
+        <li>Silence this alert for
           <a href="{{ monitor_url }}/silence/30m">30m</a>, 
           <a href="{{ monitor_url }}/silence/1h">1h</a>, 
           <a href="{{ monitor_url }}/silence/2h">2h</a>, 
           <a href="{{ monitor_url }}/silence/6h">6h</a>, 
           <a href="{{ monitor_url }}/silence/12h">12h</a>, or 
           <a href="{{ monitor_url }}/silence/1d">1d</a>
-        <li><a href="{{ monitor_url }}/unsilence">Unsilence this alarm</a>
+        <li><a href="{{ monitor_url }}/unsilence">Unsilence this alert</a>
       </ul>
-    </div>
+    </p>
   </body>
 </html>

@@ -290,14 +290,22 @@ class MonitorTest(unittest.TestCase):
       filtered_html = re.sub(r'\s+', ' ', mock_post.call_args[1]['data']['html'])
       self.assertIn('Test message with string replacement', filtered_html)
       self.assertIn('Check on this monitor\'s status', filtered_html)
-      self.assertIn('Silence this alarm for', filtered_html)
-      self.assertIn('Unsilence this alarm', filtered_html)
+      self.assertIn('Silence this alert for', filtered_html)
+      self.assertIn('Unsilence this alert', filtered_html)
 
-  def test_ok(self):
-    response = self.server.get('/ok')
-    self.assertEqual(response.data, 'ok')
+  def test_render_page(self):
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                       raw_args=['http://test.com'])
 
-  def test_silence_default(self):
+    with monitor.server.app_context():
+      html = monitor.render_page('error', 'Error', {'message': 'message', 'traceback': 'traceback'})
+      filtered_html = re.sub(r'\s+', ' ', html)
+      self.assertEquals(
+          filtered_html,
+          '<!DOCTYPE html> <html> <head> <title>Test monitor - Error</title> </head> <body> '
+          'message <pre>traceback</pre> </body> </html>')
+
+  def test_silence(self):
     poll = mock.Mock()
     monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
       'http://test.com',
@@ -315,73 +323,7 @@ class MonitorTest(unittest.TestCase):
 
     poll.reset_mock()
     monitor.poll_timer.mock_tick(5)
-    response = self.server.get('/silence')
-    self.assertEqual(response.data, 'Silenced for 1h.')
-
-    monitor.poll_timer.mock_tick(60 * 60 - 5)
-    monitor.silence_timer.mock_tick(60 * 60 - 5)
-    poll.assert_not_called()
-
-    monitor.poll_timer.mock_tick(5)
-    monitor.silence_timer.mock_tick(5)
-    poll.assert_called_once()
-
-  def test_silence_with_complex_duration(self):
-    poll = mock.Mock()
-    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
-      'http://test.com',
-      '--poll_period_s=10',
-      '--min_poll_padding_period_s=5',
-    ])
-    monitor.start(poll)
-
-    monitor.poll_timer.mock_tick(1)
-    poll.assert_called_once()
-
-    poll.reset_mock()
-    monitor.poll_timer.mock_tick(10)
-    poll.assert_called_once()
-
-    poll.reset_mock()
-    monitor.poll_timer.mock_tick(5)
-    response = self.server.get('/silence/1h30m15s')
-    self.assertEqual(response.data, 'Silenced for 1h30m15s.')
-
-    monitor.poll_timer.mock_tick((60 * 60) + (30 * 60) + (15) - 5)
-    monitor.silence_timer.mock_tick((60 * 60) + (30 * 60) + (15) - 5)
-    poll.assert_not_called()
-
-    monitor.poll_timer.mock_tick(5)
-    monitor.silence_timer.mock_tick(5)
-    poll.assert_called_once()
-
-  def test_silence_while_already_silenced_resets_timer(self):
-    poll = mock.Mock()
-    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
-      'http://test.com',
-      '--poll_period_s=10',
-      '--min_poll_padding_period_s=5',
-    ])
-    monitor.start(poll)
-
-    monitor.poll_timer.mock_tick(1)
-    poll.assert_called_once()
-
-    poll.reset_mock()
-    monitor.poll_timer.mock_tick(10)
-    poll.assert_called_once()
-
-    poll.reset_mock()
-    monitor.poll_timer.mock_tick(5)
-    response = self.server.get('/silence')
-    self.assertEqual(response.data, 'Silenced for 1h.')
-
-    monitor.poll_timer.mock_tick(30 * 60)
-    monitor.silence_timer.mock_tick(30 * 60)
-    poll.assert_not_called()
-
-    response = self.server.get('/silence')
-    self.assertEqual(response.data, 'Silenced for 1h.')
+    monitor.silence(60 * 60)
 
     monitor.poll_timer.mock_tick(60 * 60 - 5)
     monitor.silence_timer.mock_tick(60 * 60 - 5)
@@ -409,15 +351,13 @@ class MonitorTest(unittest.TestCase):
 
     poll.reset_mock()
     monitor.poll_timer.mock_tick(5)
-    response = self.server.get('/silence')
-    self.assertEqual(response.data, 'Silenced for 1h.')
+    monitor.silence(60 * 60)
 
     monitor.poll_timer.mock_tick(30 * 60)
     monitor.silence_timer.mock_tick(30 * 60)
     poll.assert_not_called()
 
-    response = self.server.get('/unsilence')
-    self.assertEqual(response.data, 'Unsilenced.')
+    self.assertTrue(monitor.unsilence())
     poll.assert_called_once()
 
     poll.reset_mock()
@@ -438,13 +378,96 @@ class MonitorTest(unittest.TestCase):
 
     poll.reset_mock()
     monitor.poll_timer.mock_tick(5)
-    response = self.server.get('/unsilence')
-    self.assertEqual(response.data, 'Already unsilenced.')
+    self.assertFalse(monitor.unsilence())
     poll.assert_not_called()
 
     poll.reset_mock()
     monitor.poll_timer.mock_tick(5)
     poll.assert_called_once()
+
+  def test_silence_while_already_silenced_resets_timer(self):
+    poll = mock.Mock()
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[], raw_args=[
+      'http://test.com',
+      '--poll_period_s=10',
+      '--min_poll_padding_period_s=5',
+    ])
+    monitor.start(poll)
+
+    monitor.poll_timer.mock_tick(1)
+    poll.assert_called_once()
+
+    poll.reset_mock()
+    monitor.poll_timer.mock_tick(10)
+    poll.assert_called_once()
+
+    poll.reset_mock()
+    monitor.poll_timer.mock_tick(5)
+    monitor.silence(60 * 60)
+
+    monitor.poll_timer.mock_tick(30 * 60)
+    monitor.silence_timer.mock_tick(30 * 60)
+    poll.assert_not_called()
+
+    monitor.silence(60 * 60)
+
+    monitor.poll_timer.mock_tick(60 * 60 - 5)
+    monitor.silence_timer.mock_tick(60 * 60 - 5)
+    poll.assert_not_called()
+
+    monitor.poll_timer.mock_tick(5)
+    monitor.silence_timer.mock_tick(5)
+    poll.assert_called_once()
+
+  def test_handle_ok(self):
+    response = self.server.get('/ok')
+    self.assertEqual(response.data, 'ok')
+
+  def test_handle_silence_default(self):
+    with mock.patch('monitor.silence') as mock_silence:
+      monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                         raw_args=['http://test.com'])
+      monitor.start(lambda: None)
+
+      response = self.server.get('/silence')
+      mock_silence.assert_called_once_with(60 * 60)
+      filtered_html = re.sub(r'\s+', ' ', response.data)    
+      self.assertIn('Silenced for 1h.', filtered_html)
+
+  def test_handle_silence_with_complex_duration(self):
+    with mock.patch('monitor.silence') as mock_silence:
+      monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                         raw_args=['http://test.com'])
+      monitor.start(lambda: None)
+      
+      response = self.server.get('/silence/1h30m15s')
+      mock_silence.assert_called_once_with((60 * 60) + (30 * 60) + (15))
+      filtered_html = re.sub(r'\s+', ' ', response.data)    
+      self.assertIn('Silenced for 1h30m15s.', filtered_html)
+
+  def test_handle_unsilence_when_silenced(self):
+    with mock.patch('monitor.unsilence', return_value=True) as mock_unsilence:
+      monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                         raw_args=['http://test.com'])
+      monitor.start(lambda: None)
+
+      monitor.silence(60 * 60)
+
+      response = self.server.get('/unsilence')
+      mock_unsilence.assert_called_once_with()
+      filtered_html = re.sub(r'\s+', ' ', response.data)    
+      self.assertIn('Unsilenced.', filtered_html)
+
+  def test_handle_unsilence_when_already_unsilenced(self):
+    with mock.patch('monitor.unsilence', return_value=False) as mock_unsilence:
+      monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                         raw_args=['http://test.com'])
+      monitor.start(lambda: None)
+
+      response = self.server.get('/unsilence')
+      mock_unsilence.assert_called_once_with()
+      filtered_html = re.sub(r'\s+', ' ', response.data)    
+      self.assertIn('Already unsilenced.', filtered_html)
 
   def test_kill_in_prod(self):
     response = self.server.get('/kill')

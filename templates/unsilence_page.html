@@ -1,0 +1,23 @@
+{% extends "base_page.html" %}
+
+{% block body %}
+  {{ super() }}
+  {% if silenced %}
+    Unsilenced.
+  {% else %}
+    Already unsilenced.
+  {% endif %}
+  <p class="links">
+    Links:
+    <ul>
+      <li><a href="/">Check on this monitor's status</a>
+      <li>Silence this alert for
+        <a href="/silence/30m">30m</a>, 
+        <a href="/silence/1h">1h</a>, 
+        <a href="/silence/2h">2h</a>, 
+        <a href="/silence/6h">6h</a>, 
+        <a href="/silence/12h">12h</a>, or 
+        <a href="/silence/1d">1d</a>
+    </ul>
+  </p>
+{% endblock %}
