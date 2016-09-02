@@ -1,10 +1,10 @@
 import geofence_monitor
+import io
 import mock
 import mocks
 import monitor
 import re
 import requests
-import StringIO
 import time
 import unittest
 
@@ -14,7 +14,7 @@ CAR_NEGATIVE_1_404_RESPONSE.status_code = 404
 
 CAR_0_NO_COORDINATES_RESPONSE = requests.Response()
 CAR_0_NO_COORDINATES_RESPONSE.status_code = 200
-CAR_0_NO_COORDINATES_RESPONSE.raw = StringIO.StringIO('''
+CAR_0_NO_COORDINATES_RESPONSE.raw = io.BytesIO(b'''
     {
       "type": "FeatureCollection",
       "features": [{
@@ -35,7 +35,7 @@ CAR_0_NO_COORDINATES_RESPONSE.raw = StringIO.StringIO('''
 
 CAR_1_INSIDE_GEOFENCE_RESPONSE = requests.Response()
 CAR_1_INSIDE_GEOFENCE_RESPONSE.status_code = 200
-CAR_1_INSIDE_GEOFENCE_RESPONSE.raw = StringIO.StringIO('''
+CAR_1_INSIDE_GEOFENCE_RESPONSE.raw = io.BytesIO(b'''
     {
       "type": "FeatureCollection",
       "features": [{
@@ -60,7 +60,7 @@ CAR_1_INSIDE_GEOFENCE_RESPONSE.raw = StringIO.StringIO('''
 
 CAR_2_INSIDE_SECOND_GEOFENCE_RESPONSE = requests.Response()
 CAR_2_INSIDE_SECOND_GEOFENCE_RESPONSE.status_code = 200
-CAR_2_INSIDE_SECOND_GEOFENCE_RESPONSE.raw = StringIO.StringIO('''
+CAR_2_INSIDE_SECOND_GEOFENCE_RESPONSE.raw = io.BytesIO(b'''
     {
       "type": "FeatureCollection",
       "features": [{
@@ -98,7 +98,7 @@ CAR_2_INSIDE_SECOND_GEOFENCE_RESPONSE.raw = StringIO.StringIO('''
 
 CAR_3_OUTSIDE_ITS_GEOFENCES_RESPONSE = requests.Response()
 CAR_3_OUTSIDE_ITS_GEOFENCES_RESPONSE.status_code = 200
-CAR_3_OUTSIDE_ITS_GEOFENCES_RESPONSE.raw = StringIO.StringIO('''
+CAR_3_OUTSIDE_ITS_GEOFENCES_RESPONSE.raw = io.BytesIO(b'''
     {
       "type": "FeatureCollection",
       "features": [{

@@ -7,6 +7,10 @@
       Links:
       <ul>
         <li><a href="{{ monitor_url }}">Check on this monitor's status</a>
+        <li>Inspect this monitor's
+          <a href="{{ monitor_url }}/logs/info">INFO</a>, 
+          <a href="{{ monitor_url }}/logs/warning">WARNING</a>, and 
+          <a href="{{ monitor_url }}/logs/error">ERROR</a> logs
         {% block links %}{% endblock %}
         <li>Silence this alert for
           <a href="{{ monitor_url }}/silence/30m">30m</a>, 

@@ -1,3 +1,4 @@
+import io
 import logging
 import mock
 import mocks
@@ -468,6 +469,59 @@ class MonitorTest(unittest.TestCase):
       mock_unsilence.assert_called_once_with()
       filtered_html = re.sub(r'\s+', ' ', response.data)    
       self.assertIn('Already unsilenced.', filtered_html)
+
+  def test_handle_logs_invalid_level(self):
+    monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                       raw_args=['http://test.com'])
+    monitor.start(lambda: None)
+
+    response = self.server.get('/logs/invalid')
+    filtered_html = re.sub(r'\s+', ' ', response.data)    
+    self.assertIn('Invalid log level: &#34;INVALID&#34;', filtered_html)
+
+  def test_handle_logs_default_level(self):
+    with mock.patch('monitor.open', return_value=io.BytesIO(b'logs record')) as mock_open:
+      monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                         raw_args=['http://test.com', '--log_file_prefix=/tmp/test_monitor'])
+      monitor.start(lambda: None)
+
+      response = self.server.get('/logs')
+      mock_open.assert_called_once_with('/tmp/test_monitor.INFO.log', 'r')
+      filtered_html = re.sub(r'\s+', ' ', response.data)    
+      self.assertIn('logs record', filtered_html)
+
+  def test_handle_logs_info_level(self):
+    with mock.patch('monitor.open', return_value=io.BytesIO(b'logs record')) as mock_open:
+      monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                         raw_args=['http://test.com', '--log_file_prefix=/tmp/test_monitor'])
+      monitor.start(lambda: None)
+
+      response = self.server.get('/logs/info')
+      mock_open.assert_called_once_with('/tmp/test_monitor.INFO.log', 'r')
+      filtered_html = re.sub(r'\s+', ' ', response.data)    
+      self.assertIn('logs record', filtered_html)
+
+  def test_handle_logs_warning_level(self):
+    with mock.patch('monitor.open', return_value=io.BytesIO(b'logs record')) as mock_open:
+      monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                         raw_args=['http://test.com', '--log_file_prefix=/tmp/test_monitor'])
+      monitor.start(lambda: None)
+
+      response = self.server.get('/logs/warning')
+      mock_open.assert_called_once_with('/tmp/test_monitor.WARNING.log', 'r')
+      filtered_html = re.sub(r'\s+', ' ', response.data)    
+      self.assertIn('logs record', filtered_html)
+
+  def test_handle_logs_error_level(self):
+    with mock.patch('monitor.open', return_value=io.BytesIO(b'logs record')) as mock_open:
+      monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
+                         raw_args=['http://test.com', '--log_file_prefix=/tmp/test_monitor'])
+      monitor.start(lambda: None)
+
+      response = self.server.get('/logs/error')
+      mock_open.assert_called_once_with('/tmp/test_monitor.ERROR.log', 'r')
+      filtered_html = re.sub(r'\s+', ' ', response.data)    
+      self.assertIn('logs record', filtered_html)
 
   def test_kill_in_prod(self):
     response = self.server.get('/kill')

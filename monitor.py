@@ -145,7 +145,7 @@ def poll():
       poll_fn()
     except Exception as e:
       traceback_str = ''.join(traceback.format_exception(*sys.exc_info()))
-      logger.error('Unhandled exception in delegate poll function: "%s"', traceback_str)
+      logger.exception('Unhandled exception in delegate poll function.')
       alert('%s encountered an exception' % name, 'monitor_exception', {'traceback': traceback_str})
 
   if is_alive:
@@ -187,8 +187,8 @@ def alert(subject, template, template_args={}):
           timeout=10)
   except:
     traceback_str = ''.join(traceback.format_exception(*sys.exc_info()))
-    logger.error('Failed to send alert "%s" with template "%s" and args: %s\n%s' %
-                 (subject, template, template_args, traceback_str))
+    logger.exception('Failed to send alert "%s" with template "%s" and args: %s' %
+                     (subject, template, template_args))
 
 
 def silence(duration_s):
@@ -228,8 +228,7 @@ def render_page(template, title, template_args={}):
     return flask.render_template(template, **template_args)
   except:
     traceback_str = ''.join(traceback.format_exception(*sys.exc_info()))
-    logger.error('Failed to render template "%s" with args: %s\n%s' %
-                 (template, template_args, traceback_str))
+    logger.exception('Failed to render template "%s" with args: %s' % (template, template_args))
     return flask.render_template(
         'error_page.html',
         monitor_name=name,
@@ -272,6 +271,22 @@ def handle_silence(duration='1h'):
 @server.route('/unsilence')
 def handle_unsilence():
   return render_page('unsilence', 'Unsilence', {'silenced': unsilence()})
+
+
+@server.route('/logs')
+@server.route('/logs/<level>')
+def handle_logs(level='INFO'):
+  level = level.upper()
+  if not level in ('INFO', 'WARNING', 'ERROR'):
+    logger.error('Received invalid log level: "%s"', level)
+    return render_page('error', 'Error', {'message': 'Invalid log level: "%s". Choose between '
+                                                     '"INFO", "WARNING", or "ERROR".' % level})
+
+  for handler in logger.handlers:
+    handler.flush()
+  with open('%s.%s.log' % (args.log_file_prefix, level), 'r') as f:
+    logs_data = f.read()
+  return render_page('logs', '%s logs' % level, {'logs_data': logs_data})
 
 
 @server.route('/kill')
