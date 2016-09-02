@@ -273,6 +273,13 @@ def handle_unsilence():
   return render_page('unsilence', 'Unsilence', {'silenced': unsilence()})
 
 
+@server.route('/args')
+def handle_args():
+  sorted_args = sorted(vars(args).iteritems(), key=lambda item: item[0])
+  logger.info('\n'.join('%s=%s' % arg_value for arg_value in sorted_args))
+  return render_page('args', 'Args', {'args': sorted_args})
+
+
 @server.route('/logs')
 @server.route('/logs/<level>')
 def handle_logs(level='INFO'):

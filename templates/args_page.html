@@ -1,0 +1,7 @@
+{% extends "base_page.html" %}
+
+{% block body %}
+  {{ super() }}
+  <pre>{% for arg, value in args %}--{{ arg }}={{ value }}
+{% endfor %}</pre>
+{% endblock %}

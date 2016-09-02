@@ -467,8 +467,57 @@ class MonitorTest(unittest.TestCase):
 
       response = self.server.get('/unsilence')
       mock_unsilence.assert_called_once_with()
-      filtered_html = re.sub(r'\s+', ' ', response.data)    
+      filtered_html = re.sub(r'\s+', ' ', response.data)
       self.assertIn('Already unsilenced.', filtered_html)
+
+  def test_handle_args(self):
+    monitor.parse_args('Test monitor', 'Test description', [{
+      'name': '--arg_a',
+      'dest': 'arg_a',
+      'default': 'default-a',
+      'help': 'A simple string arg.',
+    }, {
+      'name': '--arg_b',
+      'dest': 'renamed_arg_b',
+      'default': 3.141,
+      'type': float,
+      'help': 'The simple float arg.',
+    }, {
+      'name': '--arg_c',
+      'dest': 'arg_c',
+      'default': 'default',
+      'help': 'The simple default arg.',
+    }], [
+      'http://test.com',
+      '--arg_a=non-default-a',
+      '--arg_b=1.618',
+      '--alert_emails=test1@test.com,test2@test.com',
+      '--monitor_email=other_monitor@test.com',
+      '--poll_period_s=10',
+      '--min_poll_padding_period_s=0',
+      '--mailgun_messages_url=http://test.com/send_email',
+      '--mailgun_api_key=123456789',
+      '--port=8080',
+      '--log_file_prefix=other_monitor',
+      '--log=DEBUG',
+    ])
+
+    response = self.server.get('/args')
+    self.assertIn(
+        '--alert_emails=[&#39;test1@test.com&#39;, &#39;test2@test.com&#39;]\n'
+        '--arg_a=non-default-a\n'
+        '--arg_c=default\n'
+        '--log_file_prefix=other_monitor\n'
+        '--log_level=10\n'
+        '--mailgun_api_key=123456789\n'
+        '--mailgun_messages_url=http://test.com/send_email\n'
+        '--min_poll_padding_period_s=0.0\n'
+        '--monitor_email=other_monitor@test.com\n'
+        '--monitor_url=http://test.com\n'
+        '--poll_period_s=10.0\n'
+        '--port=8080\n'
+        '--renamed_arg_b=1.618\n',
+        response.data)
 
   def test_handle_logs_invalid_level(self):
     monitor.parse_args('Test monitor', 'Test description', raw_arg_defs=[],
