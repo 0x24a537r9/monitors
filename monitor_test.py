@@ -31,7 +31,7 @@ class MonitorTest(unittest.TestCase):
     self.assertEqual(monitor.args.mailgun_messages_url,
                      'https://api.mailgun.net/v3/sandboxf3f15ea9e4c743199c24cb3b628208c0.mailgun'
                      '.org/messages')
-    self.assertEqual(monitor.args.mailgun_api_key, 'key-db805e58c7522624b6b6c7fbb96dcbb0')
+    self.assertEqual(monitor.args.mailgun_api_key, '')
     self.assertEqual(monitor.args.port, 5000)
     self.assertEqual(monitor.args.log_file_prefix, 'test_monitor')
     self.assertEqual(monitor.args.log_level, logging.INFO)
