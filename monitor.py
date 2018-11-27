@@ -62,7 +62,7 @@ def parse_args(raw_name, raw_description, raw_arg_defs=[], raw_args=sys.argv[1:]
   }, {
     'name': '--mailgun_api_key',
     'dest': 'mailgun_api_key',
-    'default': 'key-db805e58c7522624b6b6c7fbb96dcbb0',
+    'default': '',
     'help': 'The API key for the mailgun account used to send alert emails',
   }, {
     'name': '--port',
